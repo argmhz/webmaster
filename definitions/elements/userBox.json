@@ -1,0 +1,7 @@
+{
+  "type": "userBox", "version": 1, "label": "Brugerboks",
+  "fields": [
+    { "key": "greeting", "type": "text", "label": "Hilsen", "default": "Hej {firstName}" },
+    { "key": "user", "type": "datasource", "label": "Bruger", "accepts": ["userProfile"] }
+  ]
+}

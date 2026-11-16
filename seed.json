@@ -1,0 +1,124 @@
+{
+  "documents": [
+    { "id": "ds_seneste", "kind": "datasource", "type": "articleQuery", "name": "Seneste nyheder",
+      "draft": { "fields": { "section": "indland", "sort": "newest", "limit": 12 } } },
+    { "id": "ds_seneste_sport", "kind": "datasource", "type": "articleQuery", "name": "Seneste sport",
+      "draft": { "fields": { "section": "sport", "sort": "newest", "limit": 10 } } },
+    { "id": "ds_kultur", "kind": "datasource", "type": "articleQuery", "name": "Kultur – redaktionens valg",
+      "draft": { "fields": { "section": "kultur", "sort": "editorsPick", "limit": 8 } } },
+    { "id": "ds_mest_laest", "kind": "datasource", "type": "mostRead", "name": "Mest læste i dag",
+      "draft": { "fields": { "period": "24h", "limit": 5 } } },
+    { "id": "ds_valg_picks", "kind": "datasource", "type": "articlePicks", "name": "Valget – udvalgte",
+      "draft": { "fields": { "articleIds": "81234, 81240, 81251" } } },
+    { "id": "ds_bruger", "kind": "datasource", "type": "userProfile", "name": "Aktuel bruger",
+      "draft": { "fields": { "include": ["profile", "subscriptions"] } } },
+
+    { "id": "sch_valgaften", "kind": "schedule", "type": "window", "name": "Valgaften",
+      "draft": { "fields": { "from": "2026-11-18T18:00", "to": "2026-11-19T02:00" } } },
+    { "id": "sch_morgen", "kind": "schedule", "type": "recurring", "name": "Morgen på hverdage",
+      "draft": { "fields": { "days": ["man", "tir", "ons", "tor", "fre"], "from": "06:00", "to": "10:00", "timezone": "Europe/Copenhagen" } } },
+    { "id": "sch_weekend", "kind": "schedule", "type": "recurring", "name": "Weekend",
+      "draft": { "fields": { "days": ["lør", "søn"], "from": "00:00", "to": "23:59", "timezone": "Europe/Copenhagen" } } },
+
+    { "id": "acc_abonnent", "kind": "access", "type": "subscription", "name": "Abonnenter",
+      "draft": { "fields": { "products": ["digital", "premium"] } } },
+    { "id": "acc_logget_ind", "kind": "access", "type": "loginState", "name": "Logget ind",
+      "draft": { "fields": { "state": "loggedIn" } } },
+    { "id": "acc_anonym", "kind": "access", "type": "loginState", "name": "Ikke logget ind",
+      "draft": { "fields": { "state": "anonymous" } } }
+  ],
+
+  "pages": [
+    { "id": "pg_forside", "parent": null, "slug": "", "title": "Forside",
+      "draft": {
+        "fields": { "title": "Forside", "description": "Seneste nyt fra hele landet" },
+        "schedules": [], "access": [],
+        "sections": [
+          { "id": "sec_f1", "layout": "1", "settings": { "background": "dark", "spacing": "small" },
+            "schedules": ["sch_valgaften"], "access": [],
+            "columns": [[
+              { "id": "el_f1", "type": "hero", "schedules": [], "access": [],
+                "fields": { "title": "Valgaften 2026", "subtitle": "Følg resultaterne live", "image": "/img/valg.jpg", "link": "/nyheder/indland/valg" } },
+              { "id": "el_f2", "type": "articleList", "schedules": [], "access": [],
+                "fields": { "title": "Valget lige nu", "layout": "carousel", "showImages": true, "articles": { "ref": "ds_valg_picks" } } }
+            ]] },
+          { "id": "sec_f2", "layout": "2-1", "settings": { "background": "none", "spacing": "medium" },
+            "schedules": [], "access": [],
+            "columns": [
+              [
+                { "id": "el_f3", "type": "articleList", "schedules": [], "access": [],
+                  "fields": { "title": "Seneste nyt", "layout": "grid", "showImages": true, "articles": { "ref": "ds_seneste" } } },
+                { "id": "el_f4", "type": "articleList", "schedules": [], "access": [],
+                  "fields": { "title": "Sport", "layout": "list", "showImages": false, "articles": { "ref": "ds_seneste_sport" } } }
+              ],
+              [
+                { "id": "el_f5", "type": "userBox", "schedules": [], "access": ["acc_logget_ind"],
+                  "fields": { "greeting": "Hej {firstName}", "user": { "ref": "ds_bruger" } } },
+                { "id": "el_f6", "type": "newsletter", "schedules": ["sch_morgen"], "access": ["acc_anonym"],
+                  "fields": { "title": "Få morgenbrevet", "list": "morgen" } },
+                { "id": "el_f7", "type": "articleList", "schedules": [], "access": [],
+                  "fields": { "title": "Mest læste", "layout": "list", "showImages": false, "articles": { "ref": "ds_mest_laest" } } }
+              ]
+            ] },
+          { "id": "sec_f3", "layout": "1-1-1", "settings": { "background": "light", "spacing": "medium", "anchor": "plus" },
+            "schedules": [], "access": ["acc_abonnent"],
+            "columns": [
+              [ { "id": "el_f8", "type": "teaser", "schedules": [], "access": [], "fields": { "title": "Klima: Det skal du vide", "link": "/tema/klima" } } ],
+              [ { "id": "el_f9", "type": "teaser", "schedules": [], "access": [], "fields": { "title": "Boligmarkedet i 2027", "link": "/tema/bolig" } } ],
+              [ { "id": "el_f10", "type": "teaser", "schedules": [], "access": [], "fields": { "title": "Sundhed: Søvn", "link": "/tema/sundhed" } } ]
+            ] }
+        ]
+      } },
+    { "id": "pg_nyheder", "parent": "pg_forside", "slug": "nyheder", "title": "Nyheder",
+      "draft": { "fields": { "title": "Nyheder" }, "schedules": [], "access": [],
+        "sections": [
+          { "id": "sec_n1", "layout": "2-1", "settings": { "background": "none", "spacing": "medium" }, "schedules": [], "access": [],
+            "columns": [
+              [ { "id": "el_n1", "type": "articleList", "schedules": [], "access": [], "fields": { "title": "Alle nyheder", "layout": "list", "showImages": true, "articles": { "ref": "ds_seneste" } } } ],
+              [ { "id": "el_n2", "type": "articleList", "schedules": [], "access": [], "fields": { "title": "Mest læste i indland", "layout": "list", "showImages": false, "articles": { "inline": { "type": "mostRead", "fields": { "period": "24h", "section": "indland", "limit": 5 } } } } } ]
+            ] }
+        ] } },
+    { "id": "pg_sport", "parent": "pg_nyheder", "slug": "sport", "title": "Sport",
+      "draft": { "fields": { "title": "Sport", "description": "Sportsnyheder" }, "schedules": [], "access": [],
+        "sections": [
+          { "id": "sec_s1", "layout": "1", "settings": { "background": "dark", "spacing": "small" }, "schedules": [], "access": [],
+            "columns": [[ { "id": "el_s1", "type": "hero", "schedules": [], "access": [], "fields": { "title": "Superligaen", "subtitle": "Runde 14", "image": "/img/stadion.jpg", "link": "/nyheder/sport/superliga" } } ]] },
+          { "id": "sec_s2", "layout": "2-1", "settings": { "background": "none", "spacing": "medium" }, "schedules": [], "access": [],
+            "columns": [
+              [ { "id": "el_s2", "type": "articleList", "schedules": [], "access": [], "fields": { "title": "Seneste sport", "layout": "grid", "showImages": true, "articles": { "ref": "ds_seneste_sport" } } } ],
+              [ { "id": "el_s3", "type": "newsletter", "schedules": ["sch_weekend"], "access": [], "fields": { "title": "Sportsbrevet", "list": "sport" } } ]
+            ] }
+        ] } },
+    { "id": "pg_indland", "parent": "pg_nyheder", "slug": "indland", "title": "Indland",
+      "draft": { "fields": { "title": "Indland" }, "schedules": [], "access": [], "sections": [] } },
+    { "id": "pg_kultur", "parent": "pg_forside", "slug": "kultur", "title": "Kultur",
+      "draft": { "fields": { "title": "Kultur" }, "schedules": [], "access": [],
+        "sections": [
+          { "id": "sec_k1", "layout": "1", "settings": { "background": "none", "spacing": "medium" }, "schedules": [], "access": [],
+            "columns": [[ { "id": "el_k1", "type": "articleList", "schedules": [], "access": [], "fields": { "title": "Kultur", "layout": "carousel", "showImages": true, "articles": { "ref": "ds_kultur" } } } ]] }
+        ] } },
+    { "id": "pg_om", "parent": "pg_forside", "slug": "om-os", "title": "Om os",
+      "draft": { "fields": { "title": "Om os" }, "schedules": [], "access": [],
+        "sections": [
+          { "id": "sec_o1", "layout": "1", "settings": { "background": "none", "spacing": "medium" }, "schedules": [], "access": [],
+            "columns": [[ { "id": "el_o1", "type": "text", "schedules": [], "access": [], "fields": { "body": "Vi er en uafhængig nyhedsredaktion." } } ]] }
+        ] } },
+    { "id": "pg_kontakt", "parent": "pg_om", "slug": "kontakt", "title": "Kontakt",
+      "draft": { "fields": { "title": "Kontakt" }, "schedules": [], "access": [],
+        "sections": [
+          { "id": "sec_c1", "layout": "1-1", "settings": { "background": "none", "spacing": "medium" }, "schedules": [], "access": [],
+            "columns": [
+              [ { "id": "el_c1", "type": "text", "schedules": [], "access": [], "fields": { "body": "Skriv til redaktionen." } } ],
+              [ { "id": "el_c2", "type": "text", "schedules": [], "access": [], "fields": { "body": "Ring på 70 20 30 40." } } ]
+            ] }
+        ] } }
+  ],
+
+  "unpublished": ["pg_indland"],
+
+  "redirects": [
+    { "from": "/sporten", "to": "/nyheder/sport", "status": 301 },
+    { "from": "/om", "to": "/om-os", "status": 301 },
+    { "from": "/valg", "to": "/nyheder/indland/valg", "status": 302 }
+  ]
+}

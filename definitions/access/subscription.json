@@ -1,0 +1,7 @@
+{
+  "type": "subscription", "label": "Abonnement",
+  "description": "Brugeren skal have mindst ét af de valgte produkter.",
+  "fields": [
+    { "key": "products", "type": "multiselect", "label": "Produkter", "options": ["digital", "print", "premium", "sport+"] }
+  ]
+}

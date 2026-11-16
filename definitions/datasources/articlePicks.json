@@ -1,0 +1,7 @@
+{
+  "type": "articlePicks", "source": "editorial", "label": "Håndplukkede artikler",
+  "description": "En fast liste af artikler i den rækkefølge, de står.",
+  "fields": [
+    { "key": "articleIds", "type": "text", "label": "Artikel-id'er", "required": true, "help": "Kommasepareret, fx 81234, 81240" }
+  ]
+}

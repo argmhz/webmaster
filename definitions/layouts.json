@@ -1,0 +1,8 @@
+[
+  { "layout": "1",       "label": "1 kolonne",  "columns": [{ "width": 12 }] },
+  { "layout": "1-1",     "label": "2 kolonner", "columns": [{ "width": 6 }, { "width": 6 }] },
+  { "layout": "2-1",     "label": "2/3 + 1/3",  "columns": [{ "width": 8 }, { "width": 4 }] },
+  { "layout": "1-2",     "label": "1/3 + 2/3",  "columns": [{ "width": 4 }, { "width": 8 }] },
+  { "layout": "1-1-1",   "label": "3 kolonner", "columns": [{ "width": 4 }, { "width": 4 }, { "width": 4 }] },
+  { "layout": "1-1-1-1", "label": "4 kolonner", "columns": [{ "width": 3 }, { "width": 3 }, { "width": 3 }, { "width": 3 }] }
+]

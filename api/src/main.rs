@@ -1,0 +1,100 @@
+mod defs;
+mod documents;
+mod error;
+mod ids;
+mod redirects;
+mod refs;
+mod seed;
+mod site;
+mod tree;
+
+use axum::{
+    routing::{get, patch, post},
+    Router,
+};
+use sqlx::postgres::PgPoolOptions;
+use std::{path::PathBuf, time::Duration};
+use tower_http::{
+    services::{ServeDir, ServeFile},
+    trace::TraceLayer,
+};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub db: sqlx::PgPool,
+    pub defs_dir: PathBuf,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info,tower_http=info".into()),
+        )
+        .init();
+
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://webmaster:webmaster@localhost:5433/webmaster".into());
+    let db = connect(&url).await?;
+    sqlx::migrate!("./migrations").run(&db).await?;
+
+    if let Ok(seed_file) = std::env::var("SEED_FILE") {
+        seed::run(&db, &seed_file).await?;
+    }
+
+    let defs_dir = PathBuf::from(std::env::var("DEFINITIONS_DIR").unwrap_or_else(|_| "../definitions".into()));
+    let static_dir = PathBuf::from(std::env::var("STATIC_DIR").unwrap_or_else(|_| "./static".into()));
+    let state = AppState { db, defs_dir };
+
+    let api = Router::new()
+        // editor
+        .route("/definitions", get(defs::get_all))
+        .route("/tree", get(tree::list).post(tree::create))
+        .route("/tree/:id", patch(tree::update).delete(tree::remove))
+        .route("/tree/:id/move", post(tree::move_node))
+        .route("/documents", get(documents::list).post(documents::create))
+        .route("/documents/:id", get(documents::get).put(documents::save).delete(documents::remove))
+        .route("/documents/:id/publish", post(documents::publish))
+        .route("/documents/:id/versions", get(documents::versions))
+        .route("/documents/:id/restore/:version", post(documents::restore))
+        .route("/documents/:id/used-by", get(documents::used_by))
+        .route("/redirects", get(redirects::list).put(redirects::replace))
+        // sitet (kun konfiguration – sitet resolver selv datasources, schedules og access)
+        .route("/site/page", get(site::page))
+        .route("/site/tree", get(site::tree))
+        .route("/site/redirects", get(redirects::list))
+        .with_state(state);
+
+    let index = static_dir.join("index.html");
+    let app = Router::new()
+        .nest("/api", api)
+        .fallback_service(ServeDir::new(&static_dir).fallback(ServeFile::new(index)))
+        .layer(TraceLayer::new_for_http());
+
+    let addr = std::env::var("BIND").unwrap_or_else(|_| "0.0.0.0:8080".into());
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    tracing::info!("webmaster lytter på {addr}");
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+async fn connect(url: &str) -> anyhow::Result<sqlx::PgPool> {
+    let mut tries = 0;
+    loop {
+        match PgPoolOptions::new()
+            .max_connections(10)
+            .acquire_timeout(Duration::from_secs(5))
+            .connect(url)
+            .await
+        {
+            Ok(pool) => return Ok(pool),
+            Err(e) if tries < 30 => {
+                tries += 1;
+                tracing::warn!("venter på databasen: {e}");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+}

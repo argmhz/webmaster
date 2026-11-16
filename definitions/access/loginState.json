@@ -1,0 +1,6 @@
+{
+  "type": "loginState", "label": "Login-status",
+  "fields": [
+    { "key": "state", "type": "select", "label": "Bruger er", "options": ["loggedIn", "anonymous"], "default": "loggedIn" }
+  ]
+}

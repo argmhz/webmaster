@@ -1,0 +1,7 @@
+{
+  "type": "newsletter", "version": 1, "label": "Nyhedsbrev",
+  "fields": [
+    { "key": "title", "type": "text", "label": "Overskrift" },
+    { "key": "list", "type": "select", "label": "Liste", "options": ["morgen", "sport", "weekend"], "default": "morgen" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "type": "mostRead", "source": "editorial", "label": "Mest læste",
+  "fields": [
+    { "key": "period", "type": "select", "label": "Periode", "options": ["1h", "24h", "7d"], "default": "24h" },
+    { "key": "section", "type": "select", "label": "Sektion", "optionsFrom": "editorial:sections", "options": ["indland", "udland", "sport", "kultur", "erhverv"] },
+    { "key": "limit", "type": "number", "label": "Antal", "default": 5, "max": 20 }
+  ]
+}

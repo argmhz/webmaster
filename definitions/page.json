@@ -1,0 +1,8 @@
+{
+  "type": "page",
+  "fields": [
+    { "key": "title", "type": "text", "label": "Sidetitel", "required": true },
+    { "key": "description", "type": "text", "label": "Meta-beskrivelse" },
+    { "key": "noindex", "type": "boolean", "label": "Skjul for søgemaskiner", "default": false }
+  ]
+}

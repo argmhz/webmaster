@@ -1,0 +1,7 @@
+{
+  "type": "userProfile", "source": "customer", "label": "Brugerprofil",
+  "description": "Den indloggede bruger fra customer-servicen.",
+  "fields": [
+    { "key": "include", "type": "multiselect", "label": "Inkludér", "options": ["profile", "subscriptions", "preferences"], "default": ["profile"] }
+  ]
+}

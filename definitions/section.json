@@ -1,0 +1,9 @@
+{
+  "type": "section",
+  "fields": [
+    { "key": "background", "type": "select", "label": "Baggrund", "options": ["none", "light", "dark", "brand"], "default": "none" },
+    { "key": "spacing", "type": "select", "label": "Luft", "options": ["none", "small", "medium", "large"], "default": "medium" },
+    { "key": "anchor", "type": "text", "label": "Anker-id", "help": "Bruges til links som /side#anker" },
+    { "key": "fullWidth", "type": "boolean", "label": "Fuld bredde", "default": false }
+  ]
+}

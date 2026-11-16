@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: webmaster
+      POSTGRES_PASSWORD: webmaster
+      POSTGRES_DB: webmaster
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webmaster -d webmaster"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Rust-API + færdigbygget editor på http://localhost:8088
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgres://webmaster:webmaster@db:5432/webmaster
+      RUST_LOG: info,tower_http=info
+    volumes:
+      # Definitionerne læses ved hvert kald, så ændringer slår igennem uden rebuild
+      - ./definitions:/app/definitions:ro
+    ports:
+      - "8088:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Valgfri: editor med hot reload på http://localhost:5173
+  #   docker compose --profile dev up
+  editor-dev:
+    profiles: ["dev"]
+    image: node:22-bookworm-slim
+    working_dir: /editor
+    command: sh -c "npm install && npm run dev"
+    environment:
+      API_URL: http://app:8080
+    volumes:
+      - ./editor:/editor
+      - editor_node_modules:/editor/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  editor_node_modules:

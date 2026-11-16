@@ -1,0 +1,241 @@
+//! Dokumenter: sider, datasources, schedules og access.
+//! Kladden gemmes løbende; publicering laver en uforanderlig version.
+
+use crate::{
+    defs,
+    error::{AppError, R},
+    ids, refs, AppState,
+};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    Json,
+};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct Doc {
+    pub id: String,
+    pub kind: String,
+    #[serde(rename = "type")]
+    pub doc_type: Option<String>,
+    pub name: String,
+    pub updated_at: DateTime<Utc>,
+    pub published_version: Option<i64>,
+    pub published_at: Option<DateTime<Utc>>,
+    pub changed: Option<bool>,
+    pub used_by: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub draft: Option<Value>,
+}
+
+fn select(with_draft: bool) -> String {
+    format!(
+        "select d.id, d.kind, d.type as doc_type, d.name, d.updated_at,
+            p.version_id as published_version, v.published_at,
+            (p.version_id is not null and (v.data is distinct from d.draft or v.name is distinct from d.name)) as changed,
+            (select count(*) from refs r where r.to_id = d.id) as used_by,
+            {} as draft
+        from documents d
+        left join publications p on p.document_id = d.id
+        left join versions v on v.id = p.version_id",
+        if with_draft { "d.draft" } else { "null::jsonb" }
+    )
+}
+
+async fn one(db: &sqlx::PgPool, id: &str) -> R<Doc> {
+    sqlx::query_as::<_, Doc>(&format!("{} where d.id = $1", select(true)))
+        .bind(id)
+        .fetch_optional(db)
+        .await?
+        .ok_or_else(|| AppError::not_found("Dokumentet"))
+}
+
+#[derive(Deserialize)]
+pub struct ListQ {
+    kind: Option<String>,
+}
+
+pub async fn list(State(s): State<AppState>, Query(q): Query<ListQ>) -> R<Json<Vec<Doc>>> {
+    let rows = sqlx::query_as::<_, Doc>(&format!(
+        "{} where ($1::text is null or d.kind = $1) order by lower(d.name)",
+        select(false)
+    ))
+    .bind(q.kind)
+    .fetch_all(&s.db)
+    .await?;
+    Ok(Json(rows))
+}
+
+pub async fn get(State(s): State<AppState>, Path(id): Path<String>) -> R<Json<Doc>> {
+    Ok(Json(one(&s.db, &id).await?))
+}
+
+#[derive(Deserialize)]
+pub struct CreateDoc {
+    kind: String,
+    #[serde(rename = "type")]
+    doc_type: String,
+    name: String,
+    draft: Option<Value>,
+}
+
+pub async fn create(State(s): State<AppState>, Json(b): Json<CreateDoc>) -> R<Json<Doc>> {
+    if !matches!(b.kind.as_str(), "datasource" | "schedule" | "access") {
+        return Err(AppError::bad("Sider oprettes i sidetræet"));
+    }
+    let all_defs = defs::load(&s.defs_dir)?;
+    if defs::find_type(&all_defs, &b.kind, &b.doc_type).is_none() {
+        return Err(AppError::bad(format!("Typen «{}» findes ikke for {}", b.doc_type, b.kind)));
+    }
+    let id = ids::new(ids::prefix_for(&b.kind));
+    let draft = b.draft.unwrap_or_else(|| json!({ "fields": {} }));
+    let mut tx = s.db.begin().await?;
+    sqlx::query("insert into documents (id, kind, type, name, draft) values ($1, $2, $3, $4, $5)")
+        .bind(&id)
+        .bind(&b.kind)
+        .bind(&b.doc_type)
+        .bind(b.name.trim())
+        .bind(&draft)
+        .execute(&mut *tx)
+        .await?;
+    refs::save(&mut tx, &id, &draft).await?;
+    tx.commit().await?;
+    Ok(Json(one(&s.db, &id).await?))
+}
+
+#[derive(Deserialize)]
+pub struct SaveDoc {
+    name: Option<String>,
+    draft: Option<Value>,
+}
+
+pub async fn save(State(s): State<AppState>, Path(id): Path<String>, Json(b): Json<SaveDoc>) -> R<Json<Doc>> {
+    let mut tx = s.db.begin().await?;
+    let kind: Option<String> = sqlx::query_scalar("select kind from documents where id = $1 for update")
+        .bind(&id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    let Some(kind) = kind else { return Err(AppError::not_found("Dokumentet")) };
+
+    if let Some(name) = &b.name {
+        if kind == "page" {
+            return Err(AppError::bad("Sidens navn ændres i sidetræet"));
+        }
+        sqlx::query("update documents set name = $2, updated_at = now() where id = $1")
+            .bind(&id)
+            .bind(name.trim())
+            .execute(&mut *tx)
+            .await?;
+    }
+    if let Some(draft) = &b.draft {
+        sqlx::query("update documents set draft = $2, updated_at = now() where id = $1")
+            .bind(&id)
+            .bind(draft)
+            .execute(&mut *tx)
+            .await?;
+        refs::save(&mut tx, &id, draft).await?;
+    }
+    tx.commit().await?;
+    Ok(Json(one(&s.db, &id).await?))
+}
+
+pub async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> R<StatusCode> {
+    let doc = one(&s.db, &id).await?;
+    if doc.kind == "page" {
+        return Err(AppError::bad("Sider slettes i sidetræet"));
+    }
+    if doc.used_by > 0 {
+        return Err(AppError::conflict(format!(
+            "«{}» bruges stadig {} sted(er). Fjern den derfra først.",
+            doc.name, doc.used_by
+        )));
+    }
+    sqlx::query("delete from documents where id = $1").bind(&id).execute(&s.db).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn publish(State(s): State<AppState>, Path(id): Path<String>) -> R<Json<Doc>> {
+    let mut tx = s.db.begin().await?;
+    let row: Option<(String, Option<String>, Value)> =
+        sqlx::query_as("select name, type, draft from documents where id = $1 for update")
+            .bind(&id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some((name, ty, draft)) = row else { return Err(AppError::not_found("Dokumentet")) };
+    let version_id: i64 =
+        sqlx::query_scalar("insert into versions (document_id, name, type, data) values ($1, $2, $3, $4) returning id")
+            .bind(&id)
+            .bind(&name)
+            .bind(&ty)
+            .bind(&draft)
+            .fetch_one(&mut *tx)
+            .await?;
+    sqlx::query(
+        "insert into publications (document_id, version_id) values ($1, $2)
+         on conflict (document_id) do update set version_id = excluded.version_id",
+    )
+    .bind(&id)
+    .bind(version_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    // Her ville webmasteren sende et event/webhook, så sitet kan invalidere sin cache.
+    tracing::info!(document = %id, version = version_id, "publiceret");
+    Ok(Json(one(&s.db, &id).await?))
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct Version {
+    id: i64,
+    name: String,
+    published_at: DateTime<Utc>,
+    published_by: String,
+}
+
+pub async fn versions(State(s): State<AppState>, Path(id): Path<String>) -> R<Json<Vec<Version>>> {
+    let rows = sqlx::query_as::<_, Version>(
+        "select id, name, published_at, published_by from versions where document_id = $1 order by id desc limit 50",
+    )
+    .bind(&id)
+    .fetch_all(&s.db)
+    .await?;
+    Ok(Json(rows))
+}
+
+/// Lægger en tidligere version tilbage som kladde. Den skal publiceres igen for at gå live.
+pub async fn restore(State(s): State<AppState>, Path((id, version)): Path<(String, i64)>) -> R<Json<Doc>> {
+    let mut tx = s.db.begin().await?;
+    let data: Option<Value> = sqlx::query_scalar(
+        "update documents d
+            set draft = v.data,
+                name = case when d.kind = 'page' then d.name else v.name end,
+                updated_at = now()
+           from versions v
+          where v.id = $2 and v.document_id = $1 and d.id = $1
+      returning d.draft",
+    )
+    .bind(&id)
+    .bind(version)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(data) = data else { return Err(AppError::not_found("Versionen")) };
+    refs::save(&mut tx, &id, &data).await?;
+    tx.commit().await?;
+    Ok(Json(one(&s.db, &id).await?))
+}
+
+pub async fn used_by(State(s): State<AppState>, Path(id): Path<String>) -> R<Json<Value>> {
+    let rows: Vec<(String, String, String)> = sqlx::query_as(
+        "select d.id, d.kind, d.name from refs r join documents d on d.id = r.from_id
+          where r.to_id = $1 order by d.kind, lower(d.name)",
+    )
+    .bind(&id)
+    .fetch_all(&s.db)
+    .await?;
+    Ok(Json(Value::Array(
+        rows.into_iter().map(|(id, kind, name)| json!({ "id": id, "kind": kind, "name": name })).collect(),
+    )))
+}

@@ -1,0 +1,8 @@
+{
+  "type": "teaser", "version": 1, "label": "Teaser",
+  "fields": [
+    { "key": "title", "type": "text", "label": "Titel", "required": true },
+    { "key": "image", "type": "image", "label": "Billede" },
+    { "key": "link", "type": "link", "label": "Link", "required": true }
+  ]
+}

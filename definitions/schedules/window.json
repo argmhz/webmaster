@@ -1,0 +1,8 @@
+{
+  "type": "window", "label": "Tidsrum",
+  "description": "Synlig fra et tidspunkt til et andet.",
+  "fields": [
+    { "key": "from", "type": "datetime", "label": "Fra" },
+    { "key": "to", "type": "datetime", "label": "Til" }
+  ]
+}

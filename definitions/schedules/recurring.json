@@ -1,0 +1,10 @@
+{
+  "type": "recurring", "label": "Gentagende",
+  "description": "Synlig på bestemte ugedage i et tidsrum.",
+  "fields": [
+    { "key": "days", "type": "multiselect", "label": "Ugedage", "options": ["man", "tir", "ons", "tor", "fre", "lør", "søn"] },
+    { "key": "from", "type": "time", "label": "Fra kl." },
+    { "key": "to", "type": "time", "label": "Til kl." },
+    { "key": "timezone", "type": "select", "label": "Tidszone", "options": ["Europe/Copenhagen", "UTC"], "default": "Europe/Copenhagen" }
+  ]
+}

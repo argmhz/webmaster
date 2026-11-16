@@ -1,0 +1,9 @@
+{
+  "type": "articleList", "version": 1, "label": "Artikelliste",
+  "fields": [
+    { "key": "title", "type": "text", "label": "Overskrift", "required": true },
+    { "key": "layout", "type": "select", "label": "Visning", "options": ["list", "grid", "carousel"], "default": "list" },
+    { "key": "showImages", "type": "boolean", "label": "Vis billeder", "default": true },
+    { "key": "articles", "type": "datasource", "label": "Artikler", "required": true, "accepts": ["articleQuery", "articlePicks", "mostRead"] }
+  ]
+}

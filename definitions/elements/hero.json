@@ -1,0 +1,9 @@
+{
+  "type": "hero", "version": 1, "label": "Hero",
+  "fields": [
+    { "key": "title", "type": "text", "label": "Overskrift", "required": true },
+    { "key": "subtitle", "type": "text", "label": "Underrubrik" },
+    { "key": "image", "type": "image", "label": "Billede" },
+    { "key": "link", "type": "link", "label": "Link" }
+  ]
+}
