@@ -1,4 +1,5 @@
 {
   "type": "userArticles", "source": "customer", "label": "Gemte artikler", "description": "Den indloggede brugers gemte artikler.",
+  "previewNote": "Afhænger af den besøgende",
   "fields": []
 }

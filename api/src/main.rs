@@ -2,6 +2,7 @@ mod defs;
 mod documents;
 mod error;
 mod ids;
+mod previews;
 mod redirects;
 mod refs;
 mod richtext;
@@ -60,6 +61,7 @@ async fn main() -> anyhow::Result<()> {
         // editor
         .route("/definitions", get(defs::get_all))
         .route("/options/:service/:list", get(services::get_options))
+        .route("/datasources/preview", post(previews::post_preview))
         .route("/tree", get(tree::list).post(tree::create))
         .route("/tree/:id", patch(tree::update).delete(tree::remove))
         .route("/tree/:id/move", post(tree::move_node))

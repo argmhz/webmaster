@@ -1,6 +1,7 @@
 import { createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { api, type Doc, type FieldDef, type Issue, type RefTypeDef } from "./api";
+import { DatasourcePreview, DocPreview } from "./DatasourcePreview";
 import { Fields } from "./FieldEditor";
 import { DbIcon } from "./icons";
 import {
@@ -122,7 +123,7 @@ function SharedDs(p: { id: string; onRemove: () => void; onLocalCopy: (type: str
       <div class="ds-card-sub">
         Delt · {typeLabel("datasource", d()?.type ?? null)} · bruges {d()?.used_by ?? 0} {d()?.used_by === 1 ? "sted" : "steder"}
       </div>
-      <Show when={open()}>
+      <Show when={open()} fallback={<Show when={d()?.type}><div class="ds-card-p"><DocPreview id={p.id} type={d()!.type!} /></div></Show>}>
         <SharedDsLoader id={p.id} onLocalCopy={p.onLocalCopy} />
       </Show>
     </div>
@@ -169,6 +170,7 @@ function SharedDsForm(p: { doc: Doc; onLocalCopy: (type: string, fields: Record<
         </div>
       </Show>
       <Fields defs={t?.fields ?? []} values={fields} onChange={(k, v) => { setFields(k, v); saver.schedule(); }} idPrefix={`${p.doc.id}-sb`} />
+      <DatasourcePreview type={p.doc.type ?? ""} fields={() => fields} />
       <div class="ds-actions">
         <span class={`status ${st().cls}`}><span class={`dot ${st().cls}`} />{st().label}</span>
         <span class="spacer" />
@@ -235,6 +237,7 @@ function LocalDs(p: {
           issues={p.issues}
           path={p.path ? `${p.path}inline.fields.` : undefined}
         />
+        <DatasourcePreview type={p.value.type} fields={() => p.value.fields} />
         <div class="ds-actions">
           <Show
             when={naming()}

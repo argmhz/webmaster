@@ -233,6 +233,12 @@ pub struct RefTypeDef {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub multiple: bool,
+    /// Kun datasources: hvordan editoren henter et udsnit af data (se `previews.rs`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview: Option<crate::previews::PreviewRef>,
+    /// Kun datasources uden `preview`: hvorfor der ikke er et udsnit, fx "Afhænger af den besøgende".
+    #[serde(rename = "previewNote", skip_serializing_if = "Option::is_none")]
+    pub preview_note: Option<String>,
     pub fields: Vec<FieldDef>,
 }
 
@@ -386,6 +392,7 @@ pub fn load(dir: &Path) -> Defs {
             l.problem("services.json", m);
         }
     }
+    let previews: Vec<String> = services.iter().flat_map(|(n, s)| s.previews.keys().map(move |k| format!("{n}:{k}"))).collect();
     let known = Known {
         ds_types: datasources.iter().map(|(_, d)| d.def_type.clone()).collect(),
         lists: services.iter().flat_map(|(n, s)| s.lists.keys().map(move |k| format!("{n}:{k}"))).collect(),
@@ -417,6 +424,13 @@ pub fn load(dir: &Path) -> Defs {
                 ("datasource", None) => l.problem(f.as_str(), "en datasource-type skal have «source», fx \"editorial\""),
                 ("datasource", Some(_)) | (_, None) => {}
                 (_, Some(_)) => l.problem(f.as_str(), "«source» bruges kun på datasource-typer"),
+            }
+            if kind == "datasource" {
+                for m in crate::previews::check_ref(d, &previews) {
+                    l.problem(f.as_str(), m);
+                }
+            } else if d.preview.is_some() || d.preview_note.is_some() {
+                l.problem(f.as_str(), "«preview» og «previewNote» bruges kun på datasource-typer");
             }
             if d.multiple && kind != "global" {
                 l.problem(f.as_str(), "«multiple» bruges kun på globals");

@@ -9,9 +9,9 @@ Denne fil er arbejdsplanen for webmasteren. Den er skrevet, så man kan starte e
 | 1. Fundament | Validering af definitioner og kladder, ts-rs-typer, manual | Færdig, på main |
 | 2. Felttyper | Nye felttyper, `showWhen`, links til sider, group/list | Færdig, på main (dog ikke mediearkiv, artikelvælger og elementer i elementer) |
 | 3, del 1 | Valgmuligheder fra services (`optionsFrom`, `services.json`, mock) | Færdig, på main (f5f0793) |
-| Statamic-elementer | Elementer, datasources, access og globals fra frontend-webmaster-2021 (se nedenfor) | Færdig, på grenen `fase-4-statamic-elementer` |
-| **3, del 2** | **Udsnit af data fra en datasource i editoren** | **Næste skridt** |
-| 4. Drift og sikkerhed | Login, rettigheder, preview-token, webhook | Ikke startet |
+| Statamic-elementer | Elementer, datasources, access og globals fra frontend-webmaster-2021 (se nedenfor) | Færdig, på main (PR #1) |
+| 3, del 2 | Udsnit af data fra en datasource i editoren (`previews.rs`, `DatasourcePreview.tsx`) | Færdig, på grenen `fase-3-preview` |
+| **4. Drift og sikkerhed** | **Login, rettigheder, preview-token, webhook** | **Næste skridt (skal planlægges)** |
 | 5. Editor-workflow | Bedre arbejdsgang for redaktørerne | Ikke startet |
 
 ## Statamic-elementer (gjort)
@@ -53,91 +53,18 @@ Ikke taget med endnu: gruppe D (dæk, video, kort/data, Investor Academy, Event 
   - `editor-dev` er en ekstra profil på port 5173.
 - **Tests:** Test aldrig mod brugerens database. Brug en separat database, fx `webmaster_test` i en container på port 8089, og fjern den bagefter.
 
-## Næste skridt: fase 3, del 2
+## Fase 3, del 2: udsnit af data (gjort)
 
-**Mål:** Når redaktøren redigerer en datasource, viser editoren et lille udsnit af det data, som datasourcen vil give. Det gælder både en gemt datasource i biblioteket og en inline datasource i et element. Udsnittet er fx "Seneste nyheder → de 5 første overskrifter". Udsnittet er kun til orientering; det påvirker aldrig gem, publicering eller validering.
+Se manualen, afsnittet "Udsnit af data" i `definitions/README.md`.
 
-### 1. Definition: hvordan et udsnit hentes
+- `services.json` har `previews` (sti og JSON-pointere). Datasource-typen har `preview: { from, query }` med `{felt}`-skabeloner, eller `previewNote`, når der ikke kan vises et udsnit (fx `userProfile`).
+- Afvigelse fra den oprindelige plan: query-skabelonen står på datasource-typen og ikke i `services.json`. Så kan flere typer dele ét udsnit, og `{felt}` tjekkes mod typens egne felter.
+- Backend: `api/src/previews.rs` med cache (60 s, højst 200 poster), statusserne `fresh`, `stale`, `unavailable`, `incomplete` og `none`, og `POST /api/datasources/preview`. HTTP-kaldet deles med `services.rs` (`get_json`).
+- Editor: `DatasourcePreview.tsx` i biblioteket, i en lokal datasource og i en delt datasource (`DocPreview` henter kladden, når man folder ud). Previews står også under Definitioner › services.json.
+- Mock: `mock/editorial/articles.json` og `mock/images/`.
+- Ikke med: `tagMix`, `themeFeed`, Cxense og Kilkaya har ingen udsnit (de har `previewNote`).
 
-Udvid `services.json` med `previews` ved siden af `lists`, så alt om servicen stadig står ét sted. Datasource-typen peger på sit udsnit med feltet `"preview"`:
-
-```jsonc
-// services.json
-"editorial": {
-  "baseUrl": "${EDITORIAL_URL}",
-  "headers": { "Authorization": "Bearer ${EDITORIAL_TOKEN}" },
-  "lists": { ... },
-  "previews": {
-    "articles": {
-      "path": "/articles",
-      "query": { "section": "{section}", "sort": "{sort}", "tags": "{tags}", "limit": "5" },
-      "items": "/data",
-      "title": "/headline",
-      "subtitle": "/section",
-      "image": "/image/url",
-      "url": "/url"
-    }
-  }
-}
-```
-
-```jsonc
-// datasources/articleQuery.json
-{ "type": "articleQuery", "source": "editorial", "preview": "editorial:articles", ... }
-```
-
-- `{felt}` erstattes med feltets værdi fra datasourcen og URL-kodes. Tomme felter udelades fra query-strengen.
-- Lister, fx en multiselect, sendes som komma-separeret tekst.
-- Felterne `title`, `subtitle`, `image` og `url` er JSON-pointers ligesom `value`/`label` for lister.
-- Det er bevidst begrænset til faste sti- og query-skabeloner, så der ikke opstår et skabelonsprog.
-- `defs.rs` tjekker:
-  - at `preview` peger på en eksisterende `service:preview`;
-  - at hver `{felt}` i skabelonerne findes på datasource-typen.
-- `articlePicks` kan bruge en skabelon som `"query": { "ids": "{articleIds}" }`.
-- `userProfile` afhænger af den indloggede bruger og får **ikke** noget udsnit. Editoren viser i stedet "Afhænger af den besøgende".
-
-### 2. Backend
-
-- Udvid `services.rs`, eller tilføj et nyt `previews.rs`, der genbruger http-klienten, `interpolate` og `parse` fra `services.rs`:
-  - Typer: `PreviewDef`, `PreviewItem {title, subtitle?, image?, url?}` og `Preview {status, items, fetchedAt?, error?}`.
-  - Status er `fresh` eller `stale`, når servicen har svaret, og ellers `unavailable`. Der findes ingen reserveliste for udsnit; det må bare være tomt med en forklaring.
-  - Cachen er nøglet på `service:preview` plus den færdige URL, med kort levetid (fx 60 s). Den har samme timeout og samme 30 s ventetid som option-cachen og et loft over antal poster, så den ikke vokser uden grænse.
-- Endpoint: `POST /api/datasources/preview` med body `{ "type": "articleQuery", "fields": { ... } }`.
-  - Det samme endpoint dækker både gemte og inline datasources, fordi editoren altid sender de aktuelle felter, også før de er gemt.
-  - Svaret er altid 200 med `Preview`, også når servicen fejler. Ukendt type giver 404.
-- Alle nye typer eksporteres med ts-rs.
-- Tests efter samme mønster som `fresh_then_stale_when_service_goes_down` i `services.rs`: test-server med `AtomicBool`. Test også:
-  - skabeloner med tomme felter og URL-kodning;
-  - at et manglende env gør servicen "ikke sat op".
-
-### 3. Mock
-
-- `mock/editorial/articles.json` med fx 10 artikler (headline, section, image.url, url).
-- nginx ignorerer query-strengen, så mocken returnerer altid den samme liste. Det er godt nok til lokal udvikling, og editoren skærer listen ned til `limit`.
-
-### 4. Editor
-
-- `api.ts`: `api.preview(type, fields)`.
-- En ny komponent, `DatasourcePreview.tsx`, bruges både i `Library.tsx` (gemt datasource) og i `DatasourceField.tsx`. I `DatasourceField.tsx` vises udsnittet for både ref og inline.
-  - Den henter med debounce (fx 500 ms), når felterne ændres, og viser højst 5 poster med titel, eventuelt et lille billede og et link.
-  - Status vises i samme stil som `OptionsStatus`: "Hentet 11.04", "Gammelt udsnit · editorial svarer ikke" eller "Kan ikke vises · editorial er ikke sat op".
-  - Udsnittet kan foldes sammen og må aldrig blokere redigeringen.
-- `Definitions.tsx`: oversigten over services viser også previews, med hvilke datasource-typer der bruger dem.
-
-### 5. Dokumentation og afprøvning
-
-- Opdatér `definitions/README.md` (afsnittet Services) og `README.md`.
-- Afprøv i browseren med mock-servicen både kørende og stoppet (`docker compose -p webmaster stop mock`). Bekræft:
-  - at udsnittet skifter mellem fresh, stale og unavailable;
-  - at gem og publicering virker hele tiden.
-- `cargo test` i `api/` og `npx tsc --noEmit` i `editor/`.
-- Arbejd på en gren, fx `fase-3-preview`. Commit, merge og push kun når brugeren beder om det.
-
-### Åbne spørgsmål til brugeren
-
-1. Skal udsnittet vises automatisk, eller først når man klikker "Vis udsnit"? Planen her antager automatisk med debounce.
-2. Hvilke felter giver mening at vise pr. artikel ud over overskriften?
-3. Hvilke services skal i sidste ende bruges, og har de endpoints, der minder om `/articles`? Indtil det er besluttet, laves alt kun mod mock-servicen.
+Svar på de åbne spørgsmål er antaget: udsnittet vises automatisk med debounce og viser overskrift, sektion og billede. De rigtige services er stadig ikke valgt.
 
 ## Senere
 

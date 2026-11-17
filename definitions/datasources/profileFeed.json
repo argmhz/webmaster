@@ -1,5 +1,6 @@
 {
   "type": "profileFeed", "source": "editorial", "label": "Profil", "description": "Artikler skrevet af en profil (skribent eller klummeskriver).",
+  "preview": {"from": "editorial:articles", "query": {"profile": "{profile}", "limit": "5"}},
   "fields": [
     {"key": "profile", "type": "select", "label": "Profil", "required": true, "optionsFrom": "editorial:profiles", "options": [{"value": "redaktionen", "label": "Redaktionen"}]}
   ]

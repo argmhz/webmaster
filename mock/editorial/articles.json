@@ -1,0 +1,88 @@
+{
+  "data": [
+    {
+      "id": 81230,
+      "headline": "Nationalbanken holder renten uændret (mock)",
+      "section": "Økonomi",
+      "url": "/artikel/81230",
+      "image": {
+        "url": "http://localhost:8090/images/1.svg"
+      }
+    },
+    {
+      "id": 81231,
+      "headline": "Ejendomsmarkedet i København køler af (mock)",
+      "section": "Ejendomme",
+      "url": "/artikel/81231",
+      "image": {
+        "url": "http://localhost:8090/images/2.svg"
+      }
+    },
+    {
+      "id": 81232,
+      "headline": "C25 lukker i plus efter stærke regnskaber (mock)",
+      "section": "Investor",
+      "url": "/artikel/81232",
+      "image": {
+        "url": "http://localhost:8090/images/3.svg"
+      }
+    },
+    {
+      "id": 81233,
+      "headline": "Regeringen fremlægger ny erhvervspakke (mock)",
+      "section": "Politik",
+      "url": "/artikel/81233"
+    },
+    {
+      "id": 81234,
+      "headline": "Pensionskasser flytter milliarder til grøn energi (mock)",
+      "section": "Finans",
+      "url": "/artikel/81234",
+      "image": {
+        "url": "http://localhost:8090/images/2.svg"
+      }
+    },
+    {
+      "id": 81235,
+      "headline": "Startup henter 200 mio. kr. til AI-platform (mock)",
+      "section": "Tech",
+      "url": "/artikel/81235",
+      "image": {
+        "url": "http://localhost:8090/images/3.svg"
+      }
+    },
+    {
+      "id": 81236,
+      "headline": "Fem råd til næste lønforhandling (mock)",
+      "section": "Ledelse",
+      "url": "/artikel/81236",
+      "image": {
+        "url": "http://localhost:8090/images/1.svg"
+      }
+    },
+    {
+      "id": 81237,
+      "headline": "Inflationen falder for tredje måned i træk (mock)",
+      "section": "Økonomi",
+      "url": "/artikel/81237"
+    },
+    {
+      "id": 81238,
+      "headline": "Rederi skruer op for forventningerne (mock)",
+      "section": "Virksomheder",
+      "url": "/artikel/81238",
+      "image": {
+        "url": "http://localhost:8090/images/3.svg"
+      }
+    },
+    {
+      "id": 81239,
+      "headline": "Kommentar: Derfor er boligskatten et problem (mock)",
+      "section": "Opinion",
+      "url": "/artikel/81239",
+      "image": {
+        "url": "http://localhost:8090/images/1.svg"
+      }
+    }
+  ]
+}

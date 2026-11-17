@@ -7,6 +7,9 @@
       "feeds": {"path": "/feeds", "items": "/data", "value": "/key", "label": "/name"},
       "profiles": {"path": "/profiles", "items": "/data", "value": "/slug", "label": "/name"},
       "mostReadPeriods": {"path": "/most-read-periods", "items": "/data", "value": "/key", "label": "/name"}
+    },
+    "previews": {
+      "articles": {"path": "/articles", "items": "/data", "title": "/headline", "subtitle": "/section", "image": "/image/url", "url": "/url"}
     }
   },
   "customer": {

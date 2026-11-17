@@ -26,6 +26,11 @@ export type { ServiceDef } from "./gen/ServiceDef";
 import type { OptionList } from "./gen/OptionList";
 export type { OptionList };
 export type { RefTypeDef } from "./gen/RefTypeDef";
+import type { Preview } from "./gen/Preview";
+export type { Preview };
+export type { PreviewItem } from "./gen/PreviewItem";
+export type { PreviewStatus } from "./gen/PreviewStatus";
+export type { PreviewDef } from "./gen/PreviewDef";
 
 export type RefKind = Exclude<Kind, "page">;
 
@@ -74,6 +79,9 @@ export const api = {
   /** Valgmuligheder til `optionsFrom`, fx ("editorial", "sections"). Svarer altid, også når servicen er nede. */
   options: (service: string, list: string) =>
     req<OptionList>("GET", `/options/${encodeURIComponent(service)}/${encodeURIComponent(list)}`),
+
+  /** Udsnit af data fra en datasource med de aktuelle felter. Svarer altid, også når servicen er nede. */
+  preview: (type: string, fields: Record<string, unknown>) => req<Preview>("POST", "/datasources/preview", { type, fields }),
 
   tree: () => req<TreeNode[]>("GET", "/tree"),
   createNode: (parent_id: string, title: string) => req<TreeNode>("POST", "/tree", { parent_id, title }),

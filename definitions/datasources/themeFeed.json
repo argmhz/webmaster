@@ -1,5 +1,6 @@
 {
   "type": "themeFeed", "source": "editorial", "label": "Tema", "description": "Artikler fra det tema, siden eller artiklen hører til.",
+  "previewNote": "Afhænger af den side eller artikel, elementet står på",
   "fields": [
     {"key": "mode", "type": "select", "label": "Vis", "required": true, "default": "related", "options": [{"value": "related", "label": "Relaterede i temaet"}, {"value": "overview", "label": "Temaoversigt"}, {"value": "investorAcademyRelated", "label": "Relaterede i Investor Academy"}]}
   ]

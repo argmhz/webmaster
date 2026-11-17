@@ -436,3 +436,16 @@ details.group > summary { cursor: pointer; list-style: none; }
 details.group > summary::-webkit-details-marker { display: none; }
 details.group > summary::before { content: "▸ "; }
 details.group[open] > summary::before { content: "▾ "; }
+
+/* udsnit af data fra en datasource */
+.ds-preview { font-size: 12px; }
+.ds-preview > summary { cursor: pointer; color: var(--muted); user-select: none; padding: 2px 0; }
+.ds-preview[open] > summary { margin-bottom: 6px; }
+.ds-preview-list { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-direction: column; gap: 4px; transition: opacity .15s; }
+.ds-preview-list.dim { opacity: .6; }
+.ds-preview-list li { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.ds-preview-list .thumb { width: 48px; height: 27px; flex: none; border-radius: 3px; object-fit: cover; background: var(--border); }
+.ds-preview-list .txt { display: flex; flex-direction: column; min-width: 0; }
+.ds-preview-list .t, .ds-preview-list .s { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-preview-list .s { font-size: 11px; }
+.ds-card-p { padding: 0 7px 6px; }

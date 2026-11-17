@@ -1,5 +1,6 @@
 {
   "type": "sponsoredTag", "source": "editorial", "label": "Sponsoreret tag", "description": "Sponsoreret indhold med et bestemt tag.",
+  "preview": {"from": "editorial:articles", "query": {"tags": "{tag}", "sponsored": "true", "limit": "5"}},
   "fields": [
     {"key": "tag", "type": "text", "label": "Tag", "required": true}
   ]
