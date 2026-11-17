@@ -343,3 +343,31 @@ td input:hover, td select:hover { border-color: var(--border); }
 .def-problems li { display: grid; gap: 1px; color: var(--danger); font-size: 11px; }
 .def-problems li .mono { color: var(--text); }
 .tabs .tag, .files .tag { margin-left: 5px; }
+
+/* ---------- felttyper fra fase 2 ---------- */
+.counter { align-self: flex-end; font: var(--mono); font-size: 10px; color: var(--muted); }
+.counter.over { color: var(--danger); }
+.color-field { display: flex; gap: 6px; align-items: center; }
+.color-field input[type="color"] { width: 30px; height: 26px; padding: 0 2px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--field); flex-shrink: 0; }
+.color-field input[type="text"] { flex: 1; min-width: 0; }
+input[type="date"] { background: var(--field); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 6px; font: inherit; }
+.link-field, .link-pick { display: flex; gap: 6px; align-items: center; }
+.link-field input { flex: 1; min-width: 0; }
+.link-pick > :first-child { flex: 1; min-width: 0; }
+.link-chip {
+  display: flex; align-items: center; gap: 6px; padding: 3px 3px 3px 8px;
+  border: 1px solid var(--border); border-left: 2px solid var(--accent); border-radius: 4px; background: var(--panel-2);
+}
+.link-chip .nm { font-weight: 600; }
+.link-chip .mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-field { margin: 0; padding: 6px 8px 8px; border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; gap: 8px; }
+.group-field legend { padding: 0 4px; color: var(--muted); }
+.list-field { display: flex; flex-direction: column; gap: 4px; }
+.list-item { border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); }
+.list-item > summary { display: flex; align-items: center; gap: 4px; padding: 2px 3px 2px 8px; cursor: pointer; list-style: none; }
+.list-item > summary::-webkit-details-marker { display: none; }
+.list-item > summary::before { content: "▸"; color: var(--muted); font-size: 10px; }
+.list-item[open] > summary::before { content: "▾"; }
+.list-item > summary .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-item-b { display: flex; flex-direction: column; gap: 8px; padding: 8px; border-top: 1px solid var(--border); background: rgba(0,0,0,.12); }
+.list-add { display: flex; align-items: center; gap: 8px; }

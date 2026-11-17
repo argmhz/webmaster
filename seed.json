@@ -101,7 +101,19 @@
       "draft": { "fields": { "title": "Om os" }, "schedules": [], "access": [],
         "sections": [
           { "id": "sec_o1", "layout": "1", "settings": { "background": "none", "spacing": "medium" }, "schedules": [], "access": [],
-            "columns": [[ { "id": "el_o1", "type": "text", "schedules": [], "access": [], "fields": { "body": "Vi er en uafhængig nyhedsredaktion." } } ]] }
+            "columns": [[ { "id": "el_o1", "type": "text", "schedules": [], "access": [], "fields": { "body": "Vi er en uafhængig nyhedsredaktion." } } ]] },
+          { "id": "sec_o2", "layout": "1-1", "settings": { "background": "light", "spacing": "medium" }, "schedules": [], "access": [],
+            "columns": [
+              [ { "id": "el_o2", "type": "linkList", "schedules": [], "access": [],
+                  "fields": { "title": "Genveje", "links": [
+                    { "label": "Kontakt redaktionen", "link": { "page": "pg_kontakt" }, "highlight": true },
+                    { "label": "Sport", "link": { "page": "pg_sport" }, "highlight": false },
+                    { "label": "Pressenævnet", "link": "https://www.pressenaevnet.dk", "highlight": false }
+                  ] } } ],
+              [ { "id": "el_o3", "type": "countdown", "schedules": [], "access": [],
+                  "fields": { "title": "Valget lukker om", "until": "2026-11-18T20:00", "accent": "#e4002b",
+                              "cta": { "label": "Følg valget", "link": "/nyheder/indland" } } } ]
+            ] }
         ] } },
     { "id": "pg_kontakt", "parent": "pg_om", "slug": "kontakt", "title": "Kontakt",
       "draft": { "fields": { "title": "Kontakt" }, "schedules": [], "access": [],

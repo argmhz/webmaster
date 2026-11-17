@@ -1,5 +1,6 @@
 //! Finder referencer i et dokument:
 //!   `{ "ref": "ds_..." }`            – datasource-felter
+//!   `{ "page": "pg_..." }`           – link-felter, der peger på en side
 //!   `"schedules": ["sch_..."]`       – på side, sektion og element
 //!   `"access": ["acc_..."]`          – på side, sektion og element
 
@@ -17,7 +18,7 @@ fn walk(v: &Value, out: &mut BTreeSet<String>) {
         Value::Object(m) => {
             for (k, x) in m {
                 match (k.as_str(), x) {
-                    ("ref", Value::String(s)) => {
+                    ("ref" | "page", Value::String(s)) => {
                         out.insert(s.clone());
                     }
                     ("schedules" | "access", Value::Array(a)) => {

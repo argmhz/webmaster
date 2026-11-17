@@ -1,8 +1,15 @@
 {
   "type": "articleList", "version": 1, "label": "Artikelliste",
   "fields": [
-    { "key": "title", "type": "text", "label": "Overskrift", "required": true },
-    { "key": "layout", "type": "select", "label": "Visning", "options": ["list", "grid", "carousel"], "default": "list" },
+    { "key": "title", "type": "text", "label": "Overskrift", "required": true, "maxLength": 80 },
+    { "key": "layout", "type": "select", "label": "Visning", "default": "list",
+      "options": [
+        { "value": "list", "label": "Liste" },
+        { "value": "grid", "label": "Gitter" },
+        { "value": "carousel", "label": "Karrusel" }
+      ] },
+    { "key": "autoplay", "type": "boolean", "label": "Skift automatisk", "default": false,
+      "showWhen": { "field": "layout", "equals": "carousel" } },
     { "key": "showImages", "type": "boolean", "label": "Vis billeder", "default": true },
     { "key": "articles", "type": "datasource", "label": "Artikler", "required": true, "accepts": ["articleQuery", "articlePicks", "mostRead"] }
   ]

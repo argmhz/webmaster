@@ -5,9 +5,9 @@ import { ApiError, type Issue } from "./api";
 
 export const errorsOf = (list: Issue[]) => list.filter((i) => i.level === "error");
 
-/** Det problem, der hører til et bestemt felt. Uden section/element er det sidens egne felter. */
-export function fieldIssue(list: Issue[], at: { section?: string; element?: string; field: string }): Issue | undefined {
-  return list.find((i) => i.field === at.field && i.section === at.section && i.element === at.element);
+/** Problemerne i ét objekt: et element, en sektions indstillinger eller (uden noget) sidens egne felter. */
+export function issuesAt(list: Issue[], at: { section?: string; element?: string }): Issue[] {
+  return list.filter((i) => i.section === at.section && i.element === at.element);
 }
 
 /** Issues fra en mislykket publicering, så listen kan opdateres uden et ekstra kald. */

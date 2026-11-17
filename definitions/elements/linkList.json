@@ -1,0 +1,13 @@
+{
+  "type": "linkList", "version": 1, "label": "Linkliste",
+  "description": "En liste af links til sider på sitet eller andre steder.",
+  "fields": [
+    { "key": "title", "type": "text", "label": "Overskrift" },
+    { "key": "links", "type": "list", "label": "Links", "required": true, "minItems": 1, "maxItems": 12, "itemLabel": "label",
+      "fields": [
+        { "key": "label", "type": "text", "label": "Tekst", "required": true, "maxLength": 60 },
+        { "key": "link", "type": "link", "label": "Link", "required": true },
+        { "key": "highlight", "type": "boolean", "label": "Fremhæv", "default": false }
+      ] }
+  ]
+}

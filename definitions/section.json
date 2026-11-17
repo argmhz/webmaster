@@ -1,9 +1,23 @@
 {
   "type": "section",
   "fields": [
-    { "key": "background", "type": "select", "label": "Baggrund", "options": ["none", "light", "dark", "brand"], "default": "none" },
-    { "key": "spacing", "type": "select", "label": "Luft", "options": ["none", "small", "medium", "large"], "default": "medium" },
-    { "key": "anchor", "type": "text", "label": "Anker-id", "help": "Bruges til links som /side#anker" },
+    { "key": "background", "type": "select", "label": "Baggrund", "default": "none",
+      "options": [
+        { "value": "none", "label": "Ingen" },
+        { "value": "light", "label": "Lys" },
+        { "value": "dark", "label": "Mørk" },
+        { "value": "brand", "label": "Brand" },
+        { "value": "custom", "label": "Egen farve" }
+      ] },
+    { "key": "backgroundColor", "type": "color", "label": "Baggrundsfarve", "showWhen": { "field": "background", "equals": "custom" } },
+    { "key": "spacing", "type": "select", "label": "Luft", "default": "medium",
+      "options": [
+        { "value": "none", "label": "Ingen" },
+        { "value": "small", "label": "Lidt" },
+        { "value": "medium", "label": "Normal" },
+        { "value": "large", "label": "Meget" }
+      ] },
+    { "key": "anchor", "type": "text", "label": "Anker-id", "pattern": "[a-z0-9-]+", "help": "Små bogstaver, tal og bindestreg. Bruges til links som /side#anker" },
     { "key": "fullWidth", "type": "boolean", "label": "Fuld bredde", "default": false }
   ]
 }

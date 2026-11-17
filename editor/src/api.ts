@@ -17,6 +17,8 @@ export type { ElementDef } from "./gen/ElementDef";
 export type { FieldDef } from "./gen/FieldDef";
 export type { FieldType } from "./gen/FieldType";
 export type { LayoutDef } from "./gen/LayoutDef";
+export type { Condition } from "./gen/Condition";
+export type { OptionDef } from "./gen/OptionDef";
 export type { RefTypeDef } from "./gen/RefTypeDef";
 
 export type RefKind = Exclude<Kind, "page">;

@@ -12,7 +12,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use chrono::{NaiveDateTime, NaiveTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -59,42 +59,79 @@ fn is_empty(v: Option<&Value>) -> bool {
         None | Some(Value::Null) => true,
         Some(Value::String(s)) => s.trim().is_empty(),
         Some(Value::Array(a)) => a.is_empty(),
+        Some(Value::Object(m)) => m.is_empty(),
         _ => false,
     }
-}
-
-fn in_options(fd: &FieldDef, s: &str) -> bool {
-    // Med optionsFrom er `options` kun en reserve, så andre værdier er tilladt.
-    fd.options_from.is_some() || fd.options.as_ref().is_some_and(|o| o.iter().any(|x| x == s))
 }
 
 fn is_link(s: &str) -> bool {
     ["/", "#", "https://", "http://", "mailto:", "tel:"].iter().any(|p| s.starts_with(p))
 }
 
+fn is_color(s: &str) -> bool {
+    let h = s.strip_prefix('#').unwrap_or("");
+    matches!(h.len(), 3 | 6 | 8) && h.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn fmt_num(n: f64) -> String {
+    if n.fract() == 0.0 { format!("{}", n as i64) } else { n.to_string() }
+}
+
 /// Tjekker en udfyldt værdi mod feltets type. Bruges også til `default` i definitionerne.
-/// Datasource-felter tjekkes for sig, fordi de kræver opslag.
+/// Datasource, group og list tjekkes for sig, fordi de kræver opslag eller indeholder andre felter.
 pub fn check_value(fd: &FieldDef, v: &Value) -> Option<String> {
     use FieldType::*;
     let want = |what: &str| Some(format!("skal være {what}"));
     match fd.field_type {
-        Text | Richtext | Image => (!v.is_string()).then(|| "skal være tekst".into()),
-        Link => match v.as_str() {
-            None => want("tekst"),
-            Some(s) if !s.is_empty() && !is_link(s) => {
+        Text | Richtext => {
+            let Some(s) = v.as_str() else { return want("tekst") };
+            let n = s.chars().count() as u32;
+            if let Some(m) = fd.min_length.filter(|m| n < *m) {
+                return Some(format!("skal være mindst {m} tegn"));
+            }
+            if let Some(m) = fd.max_length.filter(|m| n > *m) {
+                return Some(format!("må højst være {m} tegn (er {n})"));
+            }
+            if let Some(p) = &fd.pattern {
+                let ok = regex::Regex::new(&format!("^(?:{p})$")).map(|r| r.is_match(s)).unwrap_or(true);
+                if !ok {
+                    return Some(match &fd.help {
+                        Some(h) => format!("har ikke det rigtige format. {h}"),
+                        None => format!("har ikke det rigtige format ({p})"),
+                    });
+                }
+            }
+            None
+        }
+        Image => (!v.is_string()).then(|| "skal være tekst".into()),
+        Link => match v {
+            Value::String(s) if !s.is_empty() && !is_link(s) => {
                 Some(format!("«{s}» er ikke et link. Brug /sti, #anker eller https://…"))
             }
-            _ => None,
+            Value::String(_) => None,
+            Value::Object(m) if m.len() == 1 && m.get("page").is_some_and(Value::is_string) => None,
+            _ => want("et link eller en side"),
         },
-        Number => match v.as_f64() {
-            None => want("et tal"),
-            Some(n) if fd.max.is_some_and(|m| n > m) => Some(format!("må højst være {}", fd.max.unwrap())),
-            _ => None,
-        },
+        Number => {
+            let Some(n) = v.as_f64() else { return want("et tal") };
+            if let Some(m) = fd.min.filter(|m| n < *m) {
+                return Some(format!("skal være mindst {}", fmt_num(m)));
+            }
+            if let Some(m) = fd.max.filter(|m| n > *m) {
+                return Some(format!("må højst være {}", fmt_num(m)));
+            }
+            if let Some(step) = fd.step {
+                let k = (n - fd.min.unwrap_or(0.0)) / step;
+                if (k - k.round()).abs() > 1e-9 {
+                    return Some(format!("skal gå op i {}", fmt_num(step)));
+                }
+            }
+            None
+        }
         Boolean => (!v.is_boolean()).then(|| "skal være sand eller falsk".into()),
         Select => match v.as_str() {
             None => want("en tekst"),
-            Some(s) if !in_options(fd, s) => Some(format!("«{s}» er ikke en af valgmulighederne")),
+            Some(s) if !fd.allows_option(s) => Some(format!("«{s}» er ikke en af valgmulighederne")),
             _ => None,
         },
         Multiselect => {
@@ -102,7 +139,7 @@ pub fn check_value(fd: &FieldDef, v: &Value) -> Option<String> {
             let mut seen = vec![];
             for x in a {
                 let Some(s) = x.as_str() else { return want("en liste af tekster") };
-                if !in_options(fd, s) {
+                if !fd.allows_option(s) {
                     return Some(format!("«{s}» er ikke en af valgmulighederne"));
                 }
                 if seen.contains(&s) {
@@ -110,8 +147,12 @@ pub fn check_value(fd: &FieldDef, v: &Value) -> Option<String> {
                 }
                 seen.push(s);
             }
-            None
+            check_count(fd, a.len())
         }
+        Date => match v.as_str() {
+            Some(s) if NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok() => None,
+            _ => Some("skal være en dato som ÅÅÅÅ-MM-DD".into()),
+        },
         Datetime => match v.as_str() {
             Some(s)
                 if NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").is_ok()
@@ -125,8 +166,44 @@ pub fn check_value(fd: &FieldDef, v: &Value) -> Option<String> {
             Some(s) if NaiveTime::parse_from_str(s, "%H:%M").is_ok() => None,
             _ => Some("skal være et klokkeslæt som TT:MM".into()),
         },
+        Color => match v.as_str() {
+            Some(s) if is_color(s) => None,
+            _ => Some("skal være en farve som #rrggbb".into()),
+        },
+        Group => (!v.is_object()).then(|| "skal være et objekt".into()),
+        List => match v.as_array() {
+            None => want("en liste"),
+            Some(a) => check_count(fd, a.len()),
+        },
         Datasource => None,
     }
+}
+
+fn check_count(fd: &FieldDef, n: usize) -> Option<String> {
+    let n = n as u32;
+    if let Some(m) = fd.min_items.filter(|m| n < *m) {
+        return Some(format!("skal have mindst {m}"));
+    }
+    if let Some(m) = fd.max_items.filter(|m| n > *m) {
+        return Some(format!("må højst have {m} (har {n})"));
+    }
+    None
+}
+
+/// Om et felt vises ud fra `showWhen` og værdierne ved siden af det.
+pub fn is_shown(fd: &FieldDef, siblings: &[FieldDef], obj: &Map<String, Value>) -> bool {
+    let Some(c) = &fd.show_when else { return true };
+    let v = obj.get(&c.field).cloned().or_else(|| siblings.iter().find(|f| f.key == c.field).and_then(|f| f.default.clone()));
+    if let Some(eq) = &c.equals {
+        return v.as_ref() == Some(eq);
+    }
+    if let Some(list) = &c.one_of {
+        return v.is_some_and(|v| list.contains(&v));
+    }
+    if let Some(ne) = c.not_empty {
+        return ne != is_empty(v.as_ref());
+    }
+    true
 }
 
 /* ---------- dokumenter ---------- */
@@ -185,19 +262,26 @@ impl V<'_> {
         Some(r.clone())
     }
 
-    fn fields(&mut self, loc: &Loc, defs: &[FieldDef], obj: Option<&Value>) {
+    /// Validerer et objekt med felter. `prefix` er stien til objektet, fx "links.0.",
+    /// så `Issue.field` bliver stien til det enkelte felt.
+    fn fields(&mut self, loc: &Loc, prefix: &str, defs: &[FieldDef], obj: Option<&Value>) {
         let empty = Map::new();
         let obj = match obj {
             None | Some(Value::Null) => &empty,
             Some(Value::Object(m)) => m,
             Some(_) => {
-                self.err(loc, None, "felterne skal være et objekt");
+                let f = prefix.strip_suffix('.').filter(|p| !p.is_empty());
+                self.err(loc, f, "felterne skal være et objekt");
                 return;
             }
         };
         for fd in defs {
+            let path = format!("{prefix}{}", fd.key);
+            let f = Some(path.as_str());
+            if !is_shown(fd, defs, obj) {
+                continue;
+            }
             let v = obj.get(&fd.key);
-            let f = Some(fd.key.as_str());
             if is_empty(v) {
                 if fd.required {
                     self.err(loc, f, format!("{} skal udfyldes", fd.label()));
@@ -205,21 +289,47 @@ impl V<'_> {
                 continue;
             }
             let v = v.unwrap();
-            if fd.field_type == FieldType::Datasource {
-                self.datasource(loc, fd, v);
-            } else if let Some(m) = check_value(fd, v) {
+            if let Some(m) = check_value(fd, v) {
                 self.err(loc, f, format!("{} {m}", fd.label()));
+                continue;
+            }
+            match fd.field_type {
+                FieldType::Datasource => self.datasource(loc, &path, fd, v),
+                FieldType::Link => {
+                    if let Some(id) = v.get("page").and_then(Value::as_str) {
+                        self.lookup(loc, f, id, "page", "siden");
+                    }
+                }
+                FieldType::Group => {
+                    self.fields(&loc.child(fd.label()), &format!("{path}."), fd.sub_fields(), Some(v));
+                }
+                FieldType::List => {
+                    for (i, item) in v.as_array().into_iter().flatten().enumerate() {
+                        let title = fd
+                            .item_label
+                            .as_ref()
+                            .and_then(|k| item.get(k))
+                            .and_then(Value::as_str)
+                            .filter(|t| !t.is_empty())
+                            .map(|t| format!(" «{t}»"))
+                            .unwrap_or_default();
+                        let iloc = loc.child(format!("{} nr. {}{title}", fd.label(), i + 1));
+                        self.fields(&iloc, &format!("{path}.{i}."), fd.sub_fields(), Some(item));
+                    }
+                }
+                _ => {}
             }
         }
         for k in obj.keys() {
             if !defs.iter().any(|d| &d.key == k) {
-                self.warn(loc, Some(k), format!("feltet «{k}» findes ikke i definitionen"));
+                let path = format!("{prefix}{k}");
+                self.warn(loc, Some(&path), format!("feltet «{k}» findes ikke i definitionen"));
             }
         }
     }
 
-    fn datasource(&mut self, loc: &Loc, fd: &FieldDef, v: &Value) {
-        let f = Some(fd.key.as_str());
+    fn datasource(&mut self, loc: &Loc, path: &str, fd: &FieldDef, v: &Value) {
+        let f = Some(path);
         let accepts = fd.accepts.clone().unwrap_or_default();
         let accepted = |ty: &str| accepts.iter().any(|a| a == ty);
         let label = |ty: &str| self.defs.find_type("datasource", ty).map(|d| d.label.clone()).unwrap_or_else(|| ty.into());
@@ -240,7 +350,8 @@ impl V<'_> {
                 self.err(loc, f, format!("{}: feltet tager ikke {}", fd.label(), def.label));
             }
             let inner = loc.child(format!("{} (lokal {})", fd.label(), def.label.to_lowercase()));
-            self.fields(&inner, &def.fields, inline.get("fields"));
+            let fields = def.fields.clone();
+            self.fields(&inner, &format!("{path}.inline.fields."), &fields, inline.get("fields"));
         } else {
             self.err(loc, f, format!("{} skal pege på en datasource", fd.label()));
         }
@@ -268,7 +379,7 @@ impl V<'_> {
 
     fn page(&mut self, draft: &Value) {
         let root = Loc { text: "Side".into(), ..Default::default() };
-        self.fields(&root, &self.defs.page.fields.clone(), draft.get("fields"));
+        self.fields(&root, "", &self.defs.page.fields.clone(), draft.get("fields"));
         self.visibility(&root, draft);
         let sections = match draft.get("sections") {
             None | Some(Value::Null) => return,
@@ -286,7 +397,7 @@ impl V<'_> {
                     usize::MAX
                 }
             };
-            self.fields(&sloc, &self.defs.section.fields.clone(), s.get("settings"));
+            self.fields(&sloc, "", &self.defs.section.fields.clone(), s.get("settings"));
             self.visibility(&sloc, s);
             let cols = s.get("columns").and_then(Value::as_array).cloned().unwrap_or_default();
             for (ci, col) in cols.iter().enumerate() {
@@ -319,7 +430,7 @@ impl V<'_> {
         let Some(def) = def else {
             return self.err(&loc, None, format!("elementtypen «{ty}» findes ikke længere i definitions/"));
         };
-        self.fields(&loc, &def.fields, e.get("fields"));
+        self.fields(&loc, "", &def.fields, e.get("fields"));
         self.visibility(&loc, e);
     }
 }
@@ -332,7 +443,7 @@ pub fn document(defs: &Defs, kind: &str, doc_type: Option<&str>, draft: &Value, 
     } else {
         let ty = doc_type.unwrap_or("");
         match defs.find_type(kind, ty) {
-            Some(d) => v.fields(&Loc::default(), &d.fields, draft.get("fields")),
+            Some(d) => v.fields(&Loc::default(), "", &d.fields, draft.get("fields")),
             None => v.err(&Loc::default(), None, format!("typen «{ty}» findes ikke længere i definitions/{}", defs::list_key(kind))),
         }
     }
@@ -403,6 +514,13 @@ mod tests {
                 },
             );
         }
+        for p in seed["pages"].as_array().unwrap() {
+            let id = p["id"].as_str().unwrap();
+            refs.insert(
+                id.to_string(),
+                RefInfo { kind: "page".into(), doc_type: None, name: p["title"].as_str().unwrap().into(), published: !unpublished.contains(&id) },
+            );
+        }
         let mut all = vec![];
         for d in seed["documents"].as_array().unwrap() {
             for i in document(&defs, d["kind"].as_str().unwrap(), d["type"].as_str(), &d["draft"], &refs) {
@@ -462,6 +580,54 @@ mod tests {
     }
 
     #[test]
+    fn nested_and_conditional_fields() {
+        let defs = defs();
+        let refs: HashMap<String, RefInfo> = [(
+            "pg_a".to_string(),
+            RefInfo { kind: "page".into(), doc_type: None, name: "Kladdeside".into(), published: false },
+        )]
+        .into();
+        let draft = json!({
+            "fields": { "title": "Side", "reviewBy": "17/11" },
+            "sections": [{
+                "id": "s1", "layout": "1-1",
+                "settings": { "background": "custom", "backgroundColor": "rød", "anchor": "Mit Anker" },
+                "columns": [
+                    [
+                        { "id": "e1", "type": "linkList", "fields": { "links": [
+                            { "label": "Ok", "link": "/x" },
+                            { "label": "", "link": { "page": "pg_a" } },
+                            { "label": "Ukendt", "link": { "page": "pg_findes_ikke" } }
+                        ] } },
+                        { "id": "e2", "type": "linkList", "fields": { "links": [] } }
+                    ],
+                    [
+                        { "id": "e3", "type": "countdown", "fields": { "title": "T", "until": "2026-11-18T20:00",
+                          "cta": { "label": "", "link": "ikke et link" } } },
+                        { "id": "e4", "type": "articleList", "fields": { "title": "x", "layout": "list", "autoplay": "ja",
+                          "articles": { "inline": { "type": "mostRead", "fields": { "limit": 0 } } } } }
+                    ]
+                ]
+            }]
+        });
+        let issues = document(&defs, "page", None, &draft, &refs);
+        let all = issues.iter().map(|i| format!("{} [{}] – {}", i.location, i.field.as_deref().unwrap_or(""), i.message)).collect::<Vec<_>>().join("\n");
+        let has = |s: &str| assert!(all.contains(s), "mangler «{s}» i:\n{all}");
+        let hasnt = |s: &str| assert!(!all.contains(s), "burde ikke have «{s}» i:\n{all}");
+        has("[reviewBy] – Gennemgå senest skal være en dato");
+        has("[backgroundColor] – Baggrundsfarve skal være en farve");
+        has("[anchor] – Anker-id har ikke det rigtige format. Små bogstaver");
+        has("Links nr. 2 [links.1.label] – Tekst skal udfyldes");
+        has("[links.1.link] – siden «Kladdeside» er ikke publiceret");
+        has("Links nr. 3 «Ukendt» [links.2.link] – siden «pg_findes_ikke» findes ikke");
+        has("[links] – Links skal udfyldes");
+        has("[articles.inline.fields.limit] – Antal skal være mindst 1");
+        // Skjulte felter valideres ikke: link uden cta-tekst og autoplay uden karrusel
+        hasnt("cta.link");
+        hasnt("autoplay");
+    }
+
+    #[test]
     fn values() {
         let fd = |t: &str, extra: Value| -> FieldDef {
             let mut v = json!({ "key": "k", "type": t });
@@ -475,5 +641,20 @@ mod tests {
         assert!(check_value(&fd("select", json!({ "options": ["a"], "optionsFrom": "x:y" })), &json!("b")).is_none());
         assert!(check_value(&fd("multiselect", json!({ "options": ["a", "b"] })), &json!(["a", "a"])).is_some());
         assert!(check_value(&fd("boolean", json!({})), &json!("true")).is_some());
+        assert!(check_value(&fd("select", json!({ "options": [{ "value": "a", "label": "A" }] })), &json!("a")).is_none());
+        assert!(check_value(&fd("select", json!({ "options": [{ "value": "a", "label": "A" }] })), &json!("A")).is_some());
+        assert!(check_value(&fd("number", json!({ "min": 0, "step": 5 })), &json!(15)).is_none());
+        assert!(check_value(&fd("number", json!({ "min": 0, "step": 5 })), &json!(12)).is_some());
+        assert!(check_value(&fd("number", json!({ "step": 0.1 })), &json!(0.3)).is_none());
+        assert!(check_value(&fd("text", json!({ "maxLength": 3 })), &json!("æøå")).is_none());
+        assert!(check_value(&fd("text", json!({ "maxLength": 3 })), &json!("abcd")).is_some());
+        assert!(check_value(&fd("text", json!({ "pattern": "[0-9]+" })), &json!("12a")).is_some());
+        assert!(check_value(&fd("color", json!({})), &json!("#E4002B")).is_none());
+        assert!(check_value(&fd("color", json!({})), &json!("#e40")).is_none());
+        assert!(check_value(&fd("color", json!({})), &json!("red")).is_some());
+        assert!(check_value(&fd("date", json!({})), &json!("2026-02-30")).is_some());
+        assert!(check_value(&fd("link", json!({})), &json!({ "page": "pg_x" })).is_none());
+        assert!(check_value(&fd("link", json!({})), &json!({ "href": "/x" })).is_some());
+        assert!(check_value(&fd("multiselect", json!({ "options": ["a", "b"], "maxItems": 1 })), &json!(["a", "b"])).is_some());
     }
 }

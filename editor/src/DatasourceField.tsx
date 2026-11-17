@@ -1,7 +1,7 @@
 import { createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
-import { api, type Doc, type FieldDef, type RefTypeDef } from "./api";
-import { FieldEditor } from "./FieldEditor";
+import { api, type Doc, type FieldDef, type Issue, type RefTypeDef } from "./api";
+import { Fields } from "./FieldEditor";
 import { DbIcon } from "./icons";
 import {
   createAutosave, defaultsFor, docById, errMsg, library, navigate, refreshLibrary, refType, refTypes, status, toast,
@@ -15,7 +15,15 @@ import { Typeahead } from "./Typeahead";
  *   { ref: "ds_…" }                       – delt datasource fra biblioteket
  *   { inline: { type, fields } }          – lokal instans, kun til dette element
  */
-export function DatasourceField(p: { def: FieldDef; value: any; onChange: (v: any) => void; idPrefix: string }) {
+export function DatasourceField(p: {
+  def: FieldDef;
+  value: any;
+  onChange: (v: any) => void;
+  idPrefix: string;
+  /** Problemer i det omgivende objekt og stien til feltet (med punktum), så lokale felter kan vise deres. */
+  issues?: Issue[];
+  path?: string;
+}) {
   const accepted = (): RefTypeDef[] => {
     const all = refTypes("datasource");
     return p.def.accepts?.length ? all.filter((t) => p.def.accepts!.includes(t.type)) : all;
@@ -57,6 +65,8 @@ export function DatasourceField(p: { def: FieldDef; value: any; onChange: (v: an
             value={p.value.inline}
             types={accepted()}
             idPrefix={p.idPrefix}
+            issues={p.issues}
+            path={p.path}
             onChange={(inline) => p.onChange({ inline })}
             onRemove={() => p.onChange(undefined)}
             onShare={(name) => createShared(name, p.value.inline.type, structuredClone(unwrap(p.value.inline.fields) ?? {}))}
@@ -158,11 +168,7 @@ function SharedDsForm(p: { doc: Doc; onLocalCopy: (type: string, fields: Record<
           Vil du kun ændre den her, så lav en lokal kopi.
         </div>
       </Show>
-      <For each={t?.fields ?? []}>
-        {(f) => (
-          <FieldEditor def={f} idPrefix={`${p.doc.id}-sb`} value={fields[f.key]} onChange={(v) => { setFields(f.key, v); saver.schedule(); }} />
-        )}
-      </For>
+      <Fields defs={t?.fields ?? []} values={fields} onChange={(k, v) => { setFields(k, v); saver.schedule(); }} idPrefix={`${p.doc.id}-sb`} />
       <div class="ds-actions">
         <span class={`status ${st().cls}`}><span class={`dot ${st().cls}`} />{st().label}</span>
         <span class="spacer" />
@@ -178,6 +184,8 @@ function LocalDs(p: {
   value: { type: string; fields?: Record<string, any> };
   types: RefTypeDef[];
   idPrefix: string;
+  issues?: Issue[];
+  path?: string;
   onChange: (inline: { type: string; fields: Record<string, any> }) => void;
   onRemove: () => void;
   onShare: (name: string) => void;
@@ -219,16 +227,14 @@ function LocalDs(p: {
         <Show when={t()?.description}>
           <div class="help">{t()!.description}</div>
         </Show>
-        <For each={t()?.fields ?? []}>
-          {(f) => (
-            <FieldEditor
-              def={f}
-              idPrefix={`${p.idPrefix}-inl`}
-              value={p.value.fields?.[f.key]}
-              onChange={(v) => p.onChange({ type: p.value.type, fields: { ...(p.value.fields ?? {}), [f.key]: v } })}
-            />
-          )}
-        </For>
+        <Fields
+          defs={t()?.fields ?? []}
+          values={p.value.fields}
+          onChange={(k, v) => p.onChange({ type: p.value.type, fields: { ...(p.value.fields ?? {}), [k]: v } })}
+          idPrefix={`${p.idPrefix}-inl`}
+          issues={p.issues}
+          path={p.path ? `${p.path}inline.fields.` : undefined}
+        />
         <div class="ds-actions">
           <Show
             when={naming()}

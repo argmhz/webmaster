@@ -32,12 +32,20 @@ export function Typeahead(p: {
   hotkey?: string;
   footer?: string;
   compact?: boolean;
+  /** Fokusér søgefeltet med det samme, fx når det åbnes af en knap. */
+  autofocus?: boolean;
 }) {
   const [q, setQ] = createSignal("");
   const [open, setOpen] = createSignal(false);
   const [active, setActive] = createSignal(0);
   let wrap!: HTMLDivElement;
   let input!: HTMLInputElement;
+  onMount(() => {
+    if (p.autofocus) {
+      input.focus();
+      setOpen(true);
+    }
+  });
 
   const groups = createMemo(() => {
     const items = p.items;

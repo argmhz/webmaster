@@ -1,8 +1,9 @@
 {
   "type": "page",
   "fields": [
-    { "key": "title", "type": "text", "label": "Sidetitel", "required": true },
-    { "key": "description", "type": "text", "label": "Meta-beskrivelse" },
-    { "key": "noindex", "type": "boolean", "label": "Skjul for søgemaskiner", "default": false }
+    { "key": "title", "type": "text", "label": "Sidetitel", "required": true, "maxLength": 70 },
+    { "key": "description", "type": "richtext", "label": "Meta-beskrivelse", "maxLength": 160 },
+    { "key": "noindex", "type": "boolean", "label": "Skjul for søgemaskiner", "default": false },
+    { "key": "reviewBy", "type": "date", "label": "Gennemgå senest", "help": "Hvornår siden skal tjekkes igen" }
   ]
 }

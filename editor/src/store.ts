@@ -70,7 +70,13 @@ export function status(d: { published_version: number | null; changed: boolean |
 
 export function defaultsFor(fields: FieldDef[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const f of fields) if (f.default !== undefined) out[f.key] = structuredClone(f.default);
+  for (const f of fields) {
+    if (f.default !== undefined) out[f.key] = structuredClone(f.default);
+    else if (f.type === "group") {
+      const inner = defaultsFor(f.fields ?? []);
+      if (Object.keys(inner).length) out[f.key] = inner;
+    }
+  }
   return out;
 }
 

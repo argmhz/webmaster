@@ -1,0 +1,14 @@
+{
+  "type": "countdown", "version": 1, "label": "Nedtælling",
+  "description": "Tæller ned til et tidspunkt, fx en kampagne eller et valg.",
+  "fields": [
+    { "key": "title", "type": "text", "label": "Overskrift", "required": true },
+    { "key": "until", "type": "datetime", "label": "Tæl ned til", "required": true },
+    { "key": "accent", "type": "color", "label": "Farve", "default": "#e4002b" },
+    { "key": "cta", "type": "group", "label": "Knap",
+      "fields": [
+        { "key": "label", "type": "text", "label": "Tekst", "placeholder": "Læs mere" },
+        { "key": "link", "type": "link", "label": "Link", "showWhen": { "field": "label", "notEmpty": true } }
+      ] }
+  ]
+}

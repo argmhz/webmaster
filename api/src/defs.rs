@@ -24,29 +24,73 @@ pub enum FieldType {
     Boolean,
     Select,
     Multiselect,
+    Date,
     Datetime,
     Time,
+    Color,
     Link,
     Image,
     Datasource,
+    Group,
+    List,
 }
 
 impl FieldType {
     pub fn name(self) -> &'static str {
+        use FieldType::*;
         match self {
-            FieldType::Text => "text",
-            FieldType::Richtext => "richtext",
-            FieldType::Number => "number",
-            FieldType::Boolean => "boolean",
-            FieldType::Select => "select",
-            FieldType::Multiselect => "multiselect",
-            FieldType::Datetime => "datetime",
-            FieldType::Time => "time",
-            FieldType::Link => "link",
-            FieldType::Image => "image",
-            FieldType::Datasource => "datasource",
+            Text => "text",
+            Richtext => "richtext",
+            Number => "number",
+            Boolean => "boolean",
+            Select => "select",
+            Multiselect => "multiselect",
+            Date => "date",
+            Datetime => "datetime",
+            Time => "time",
+            Color => "color",
+            Link => "link",
+            Image => "image",
+            Datasource => "datasource",
+            Group => "group",
+            List => "list",
         }
     }
+}
+
+/// En valgmulighed: enten bare værdien, eller værdi og den tekst, redaktøren ser.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(untagged)]
+#[ts(export)]
+pub enum OptionDef {
+    Plain(String),
+    Labeled {
+        value: String,
+        label: String,
+    },
+}
+
+impl OptionDef {
+    pub fn value(&self) -> &str {
+        match self {
+            OptionDef::Plain(v) | OptionDef::Labeled { value: v, .. } => v,
+        }
+    }
+}
+
+/// Betingelse for at vise et felt. Præcis én af `equals`, `in` og `notEmpty` skal være sat.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[ts(export, optional_fields)]
+pub struct Condition {
+    /// Nøglen på et andet felt i samme liste af felter.
+    pub field: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub equals: Option<Value>,
+    #[serde(rename = "in", skip_serializing_if = "Option::is_none")]
+    pub one_of: Option<Vec<Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub not_empty: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -58,28 +102,69 @@ pub struct FieldDef {
     pub field_type: FieldType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub required: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<Vec<String>>,
+    pub default: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_when: Option<Condition>,
+    /// Tekst i et tomt felt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub placeholder: Option<String>,
+    // select / multiselect
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<Vec<OptionDef>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options_from: Option<String>,
+    // number
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default: Option<Value>,
+    pub min: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub help: Option<String>,
+    pub step: Option<f64>,
+    // text / richtext
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_length: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_length: Option<u32>,
+    /// Regulært udtryk, som hele værdien skal matche.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    // multiselect / list
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_items: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_items: Option<u32>,
+    // datasource
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepts: Option<Vec<String>>,
+    // group / list
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fields: Option<Vec<FieldDef>>,
+    /// list: nøglen på det underfelt, hvis værdi bruges som overskrift på hvert punkt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item_label: Option<String>,
 }
 
 impl FieldDef {
     pub fn label(&self) -> &str {
         self.label.as_deref().unwrap_or(&self.key)
     }
+    pub fn sub_fields(&self) -> &[FieldDef] {
+        self.fields.as_deref().unwrap_or(&[])
+    }
+    /// Værdien er en af valgmulighederne (eller kommer fra `optionsFrom`, som ikke kan tjekkes her).
+    pub fn allows_option(&self, v: &str) -> bool {
+        self.options_from.is_some() || self.options.as_ref().is_some_and(|o| o.iter().any(|x| x.value() == v))
+    }
 }
+
+/// Nøgler, som API'et selv bruger til at finde referencer i dokumenterne.
+pub const RESERVED_KEYS: [&str; 5] = ["ref", "inline", "page", "schedules", "access"];
 
 /// `page.json` og `section.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -271,7 +356,7 @@ pub fn load(dir: &Path) -> Defs {
                 ("datasource", Some(_)) | (_, None) => {}
                 (_, Some(_)) => l.problem(f, "«source» bruges kun på datasource-typer"),
             }
-            if d.fields.iter().any(|x| x.field_type == FieldType::Datasource) {
+            if has_datasource(&d.fields) {
                 l.problem(f, "felter af typen datasource kan kun bruges på elementer, side og sektion");
             }
             check_fields(&mut l, f, &d.fields, &ds_types);
@@ -341,57 +426,153 @@ fn check_layouts(l: &mut Loader, layouts: &[LayoutDef]) {
 }
 
 fn check_fields(l: &mut Loader, file: &str, fields: &[FieldDef], ds_types: &HashSet<String>) {
+    check_fields_in(l, file, "", fields, ds_types)
+}
+
+fn check_fields_in(l: &mut Loader, file: &str, parent: &str, fields: &[FieldDef], ds_types: &HashSet<String>) {
+    use FieldType::*;
     let mut keys = BTreeSet::new();
     for fd in fields {
-        let at = |m: String| format!("feltet «{}»: {m}", fd.key);
+        let name = format!("{parent}{}", fd.key);
+        let at = |m: String| format!("feltet «{name}»: {m}");
+        let mut bad = |m: String| l.problems.push(DefProblem { file: file.into(), message: at(m) });
+        let t = fd.field_type;
+        let tn = t.name();
         if !is_ident(&fd.key) {
-            l.problem(file, at("nøglen skal starte med et bogstav og kun indeholde bogstaver, tal og _".into()));
+            bad("nøglen skal starte med et bogstav og kun indeholde bogstaver, tal og _".into());
+        }
+        if RESERVED_KEYS.contains(&fd.key.as_str()) {
+            bad(format!("nøglen «{}» er reserveret. Reserverede nøgler: {}", fd.key, RESERVED_KEYS.join(", ")));
         }
         if !keys.insert(&fd.key) {
-            l.problem(file, at("nøglen findes flere gange".into()));
+            bad("nøglen findes flere gange".into());
         }
-        let t = fd.field_type;
-        let choice = matches!(t, FieldType::Select | FieldType::Multiselect);
-        if choice && fd.options.as_ref().is_none_or(|o| o.is_empty()) {
-            l.problem(file, at(format!("{} skal have «options»", t.name())));
+        // Egenskaber, der kun hører til bestemte typer
+        let only = |prop: &str, set: bool, ok: &[FieldType]| -> Option<String> {
+            (set && !ok.contains(&t)).then(|| {
+                let names: Vec<&str> = ok.iter().map(|x| x.name()).collect();
+                format!("«{prop}» bruges kun på {}, ikke {tn}", names.join(" og "))
+            })
+        };
+        let choice = [Select, Multiselect];
+        let texts = [Text, Richtext];
+        for m in [
+            only("options", fd.options.is_some(), &choice),
+            only("optionsFrom", fd.options_from.is_some(), &choice),
+            only("min", fd.min.is_some(), &[Number]),
+            only("max", fd.max.is_some(), &[Number]),
+            only("step", fd.step.is_some(), &[Number]),
+            only("minLength", fd.min_length.is_some(), &texts),
+            only("maxLength", fd.max_length.is_some(), &texts),
+            only("pattern", fd.pattern.is_some(), &texts),
+            only("placeholder", fd.placeholder.is_some(), &[Text, Richtext, Number, Link, Image]),
+            only("minItems", fd.min_items.is_some(), &[Multiselect, List]),
+            only("maxItems", fd.max_items.is_some(), &[Multiselect, List]),
+            only("accepts", fd.accepts.is_some(), &[Datasource]),
+            only("fields", fd.fields.is_some(), &[Group, List]),
+            only("itemLabel", fd.item_label.is_some(), &[List]),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            bad(m);
         }
-        if !choice && fd.options.is_some() {
-            l.problem(file, at(format!("«options» bruges ikke på {}", t.name())));
-        }
-        if !choice && fd.options_from.is_some() {
-            l.problem(file, at(format!("«optionsFrom» bruges ikke på {}", t.name())));
-        }
-        if let Some(of) = &fd.options_from {
-            if !of.contains(':') {
-                l.problem(file, at(format!("«optionsFrom» skal have formen \"service:liste\", ikke \"{of}\"")));
-            }
-        }
-        if fd.max.is_some() && t != FieldType::Number {
-            l.problem(file, at("«max» bruges kun på number".into()));
-        }
-        match (t, &fd.accepts) {
-            (FieldType::Datasource, None) => l.problem(file, at("datasource-felter skal have «accepts»".into())),
-            (FieldType::Datasource, Some(acc)) => {
-                if acc.is_empty() {
-                    l.problem(file, at("«accepts» må ikke være tom".into()));
-                }
-                for a in acc {
-                    if !ds_types.contains(a) {
-                        l.problem(file, at(format!("«accepts» nævner «{a}», som ikke er en datasource-type")));
+
+        if choice.contains(&t) {
+            match &fd.options {
+                None => bad(format!("{tn} skal have «options»")),
+                Some(o) if o.is_empty() => bad("«options» må ikke være tom".into()),
+                Some(o) => {
+                    let mut seen = HashSet::new();
+                    for x in o {
+                        if !seen.insert(x.value()) {
+                            bad(format!("valgmuligheden «{}» findes flere gange", x.value()));
+                        }
                     }
                 }
             }
-            (_, Some(_)) => l.problem(file, at("«accepts» bruges kun på datasource".into())),
-            (_, None) => {}
         }
-        if let Some(d) = &fd.default {
-            if t == FieldType::Datasource {
-                l.problem(file, at("datasource-felter kan ikke have «default»".into()));
-            } else if let Some(m) = crate::validate::check_value(fd, d) {
-                l.problem(file, at(format!("«default» er ugyldig: {m}")));
+        if let Some(of) = &fd.options_from {
+            if !of.contains(':') {
+                bad(format!("«optionsFrom» skal have formen \"service:liste\", ikke \"{of}\""));
             }
         }
+        if let (Some(a), Some(b)) = (fd.min, fd.max) {
+            if a > b {
+                bad("«min» er større end «max»".into());
+            }
+        }
+        if fd.step.is_some_and(|s| s <= 0.0) {
+            bad("«step» skal være større end 0".into());
+        }
+        if let (Some(a), Some(b)) = (fd.min_length, fd.max_length) {
+            if a > b {
+                bad("«minLength» er større end «maxLength»".into());
+            }
+        }
+        if let (Some(a), Some(b)) = (fd.min_items, fd.max_items) {
+            if a > b {
+                bad("«minItems» er større end «maxItems»".into());
+            }
+        }
+        if let Some(p) = &fd.pattern {
+            if let Err(e) = regex::Regex::new(p) {
+                bad(format!("«pattern» er ikke et gyldigt regulært udtryk: {e}"));
+            }
+        }
+        match (t, &fd.accepts) {
+            (Datasource, None) => bad("datasource-felter skal have «accepts»".into()),
+            (Datasource, Some(acc)) => {
+                if acc.is_empty() {
+                    bad("«accepts» må ikke være tom".into());
+                }
+                for a in acc {
+                    if !ds_types.contains(a) {
+                        bad(format!("«accepts» nævner «{a}», som ikke er en datasource-type"));
+                    }
+                }
+            }
+            _ => {}
+        }
+        if matches!(t, Group | List) {
+            match &fd.fields {
+                None => bad(format!("{tn} skal have «fields»")),
+                Some(f) if f.is_empty() => bad("«fields» må ikke være tom".into()),
+                Some(_) => {}
+            }
+        }
+        if let Some(il) = &fd.item_label {
+            if !fd.sub_fields().iter().any(|f| &f.key == il) {
+                bad(format!("«itemLabel» peger på «{il}», som ikke er et af underfelterne"));
+            }
+        }
+        if let Some(d) = &fd.default {
+            if matches!(t, Datasource | Group | List) {
+                bad(format!("{tn}-felter kan ikke have «default». Sæt den på underfelterne i stedet"));
+            } else if let Some(m) = crate::validate::check_value(fd, d) {
+                bad(format!("«default» er ugyldig: {m}"));
+            }
+        }
+        if let Some(c) = &fd.show_when {
+            let ops = [c.equals.is_some(), c.one_of.is_some(), c.not_empty.is_some()].iter().filter(|x| **x).count();
+            if ops != 1 {
+                bad("«showWhen» skal have præcis én af «equals», «in» og «notEmpty»".into());
+            }
+            if c.field == fd.key {
+                bad("«showWhen» kan ikke afhænge af feltet selv".into());
+            } else if !fields.iter().any(|f| f.key == c.field) {
+                bad(format!("«showWhen» peger på «{}», som ikke er et felt ved siden af", c.field));
+            }
+        }
+        if let Some(sub) = &fd.fields {
+            check_fields_in(l, file, &format!("{name}."), sub, ds_types);
+        }
     }
+}
+
+/// Om der et sted i felterne (også inde i group og list) er et datasource-felt.
+pub fn has_datasource(fields: &[FieldDef]) -> bool {
+    fields.iter().any(|f| f.field_type == FieldType::Datasource || has_datasource(f.sub_fields()))
 }
 
 pub async fn get_all(State(s): State<AppState>) -> R<Json<Defs>> {
@@ -428,6 +609,18 @@ mod tests {
             ]}"#,
         )
         .unwrap();
+        std::fs::write(
+            dir.join("elements/d.json"),
+            r#"{"type":"d","version":1,"label":"D","fields":[
+                {"key":"ref","type":"text"},
+                {"key":"g","type":"group"},
+                {"key":"l","type":"list","itemLabel":"nej","fields":[{"key":"x","type":"text","pattern":"("}]},
+                {"key":"w","type":"text","showWhen":{"field":"mangler","equals":1}},
+                {"key":"n","type":"number","min":5,"max":1,"maxLength":3},
+                {"key":"s","type":"select","options":["a",{"value":"a","label":"A"}]}
+            ]}"#,
+        )
+        .unwrap();
         std::fs::write(dir.join("elements/b.json"), r#"{"type":"b","version":1,"label":"B","fields":[{"key":"x","type":"txt"}]}"#).unwrap();
         std::fs::write(dir.join("elements/c.json"), r#"{"type":"c","version":1,"label":"C","feilds":[]}"#).unwrap();
         let defs = load(&dir);
@@ -438,7 +631,15 @@ mod tests {
         assert!(all.contains("«default» er ugyldig"), "{all}");
         assert!(all.contains("elements/b.json") && all.contains("txt"), "{all}");
         assert!(all.contains("elements/c.json") && all.contains("feilds"), "{all}");
-        assert_eq!(defs.elements.len(), 1);
+        assert!(all.contains("«ref» er reserveret"), "{all}");
+        assert!(all.contains("feltet «g»: group skal have «fields»"), "{all}");
+        assert!(all.contains("«itemLabel» peger på «nej»"), "{all}");
+        assert!(all.contains("feltet «l.x»: «pattern» er ikke et gyldigt"), "{all}");
+        assert!(all.contains("«showWhen» peger på «mangler»"), "{all}");
+        assert!(all.contains("«min» er større end «max»"), "{all}");
+        assert!(all.contains("«maxLength» bruges kun på text og richtext, ikke number"), "{all}");
+        assert!(all.contains("valgmuligheden «a» findes flere gange"), "{all}");
+        assert_eq!(defs.elements.len(), 2);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

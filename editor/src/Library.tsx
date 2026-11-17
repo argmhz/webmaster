@@ -1,8 +1,8 @@
 import { createResource, createSignal, For, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { api, type Doc, type Issue, type RefKind } from "./api";
-import { FieldEditor } from "./FieldEditor";
-import { errorsOf, fieldIssue, IssueSummary, issuesFromError } from "./Issues";
+import { Fields } from "./FieldEditor";
+import { errorsOf, IssueSummary, issuesFromError } from "./Issues";
 import { KindIcon } from "./icons";
 import {
   createAutosave, defaultsFor, errMsg, KIND, library, navigate, refType, refTypes, refreshLibrary, route, status, toast,
@@ -166,7 +166,7 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
           <span class="tag">kilde: {def()!.source}</span>
         </Show>
         <span class="spacer" />
-        <IssueSummary issues={issues()} onPick={(i) => i.field && document.getElementById(`${p.doc.id}-${i.field}`)?.focus()} />
+        <IssueSummary issues={issues()} onPick={(i) => i.field && document.getElementById(`${p.doc.id}-${i.field.replace(/\./g, "-")}`)?.focus()} />
         <span class={`status ${st().cls}`}><span class={`dot ${st().cls}`} />{st().label}</span>
         <button
           class="primary"
@@ -191,17 +191,13 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
           </Show>
           <div class="group">
             <div class="group-h">Felter</div>
-            <For each={def()?.fields ?? []}>
-              {(fd) => (
-                <FieldEditor
-                  def={fd}
-                  idPrefix={p.doc.id}
-                  issue={fieldIssue(issues(), { field: fd.key })}
-                  value={state.draft.fields[fd.key]}
-                  onChange={(v) => { setState("draft", "fields", fd.key, v); saver.schedule(); }}
-                />
-              )}
-            </For>
+            <Fields
+              defs={def()?.fields ?? []}
+              values={state.draft.fields}
+              onChange={(k, v) => { setState("draft", "fields", k, v); saver.schedule(); }}
+              idPrefix={p.doc.id}
+              issues={issues()}
+            />
           </div>
           <div class="group">
             <button class="danger" disabled={(usedBy()?.length ?? 0) > 0} title={(usedBy()?.length ?? 0) > 0 ? "Fjern den fra siderne først" : ""} onClick={remove}>

@@ -2,8 +2,8 @@ import { createEffect, createResource, createSignal, For, Match, on, Show, Switc
 import { createStore, produce, reconcile, unwrap } from "solid-js/store";
 import { api, type Doc, type El, type Issue, type PageDraft, type Sec, type Vis } from "./api";
 import { clearMarks, endDrag, getDrag, showLine, slot, startDrag } from "./dnd";
-import { FieldEditor } from "./FieldEditor";
-import { errorsOf, fieldIssue, IssueSummary, issuesFromError } from "./Issues";
+import { Fields, optionLabel } from "./FieldEditor";
+import { errorsOf, IssueSummary, issuesAt, issuesFromError } from "./Issues";
 import { BlockIcon, ClockIcon, LayoutGlyph, LockIcon, VisBadges } from "./icons";
 import { RefPicker } from "./RefPicker";
 import {
@@ -105,7 +105,10 @@ function summary(e: El) {
       const extra = Object.values(v.inline.fields ?? {}).filter((x) => typeof x === "string" || typeof x === "number").slice(0, 2);
       parts.push(`⛁ lokal ${typeLabel("datasource", v.inline.type).toLowerCase()}${extra.length ? ` (${extra.join(", ")})` : ""}`);
     }
-    else if (["text", "richtext", "select", "link"].includes(f.type)) parts.push(String(v));
+    else if (f.type === "select") parts.push(optionLabel(f, v));
+    else if (f.type === "link") parts.push(typeof v === "object" ? "→ " + pathOf(v.page) : String(v));
+    else if (f.type === "list" && Array.isArray(v)) parts.push(`${v.length} × ${(f.label ?? f.key).toLowerCase()}`);
+    else if (["text", "richtext"].includes(f.type)) parts.push(String(v));
   }
   return parts.join(" · ") || "Ikke udfyldt";
 }
@@ -547,11 +550,13 @@ function PageWorkspace(p: { doc: Doc }) {
                     </div>
                     <div class="group">
                       <div class="group-h">Felter</div>
-                      <For each={def?.fields ?? []}>
-                        {(fd) => (
-                          <FieldEditor def={fd} idPrefix={e.id} issue={fieldIssue(issues(), { section: f()?.si != null ? draft.sections[f()!.si].id : undefined, element: e.id, field: fd.key })} value={e.fields[fd.key]} onChange={(v) => updEl(e.id, (x) => { x.fields[fd.key] = v; })} />
-                        )}
-                      </For>
+                      <Fields
+                        defs={def?.fields ?? []}
+                        values={e.fields}
+                        onChange={(k, v) => updEl(e.id, (x) => { x.fields[k] = v; })}
+                        idPrefix={e.id}
+                        issues={issuesAt(issues(), { section: f()?.si != null ? draft.sections[f()!.si].id : undefined, element: e.id })}
+                      />
                     </div>
                     <Visibility v={e} onChange={(k, ids) => updEl(e.id, (x) => { x[k] = ids; })} />
                   </div>
@@ -579,11 +584,13 @@ function PageWorkspace(p: { doc: Doc }) {
                   </div>
                   <div class="group">
                     <div class="group-h">Indstillinger</div>
-                    <For each={defs()!.section.fields}>
-                      {(fd) => (
-                        <FieldEditor def={fd} idPrefix={s.id} issue={fieldIssue(issues(), { section: s.id, field: fd.key })} value={s.settings[fd.key]} onChange={(v) => updSec(s.id, (x) => { x.settings[fd.key] = v; })} />
-                      )}
-                    </For>
+                    <Fields
+                      defs={defs()!.section.fields}
+                      values={s.settings}
+                      onChange={(k, v) => updSec(s.id, (x) => { x.settings[k] = v; })}
+                      idPrefix={s.id}
+                      issues={issuesAt(issues(), { section: s.id })}
+                    />
                   </div>
                   <Visibility v={s} onChange={(k, ids) => updSec(s.id, (x) => { x[k] = ids; })} />
                 </div>
@@ -674,9 +681,7 @@ function PageInspector(p: {
         </div>
         <div class="group">
           <div class="group-h">Felter</div>
-          <For each={defs()!.page.fields}>
-            {(fd) => <FieldEditor def={fd} idPrefix={p.id} issue={fieldIssue(p.issues, { field: fd.key })} value={p.draft.fields[fd.key]} onChange={(v) => p.onField(fd.key, v)} />}
-          </For>
+          <Fields defs={defs()!.page.fields} values={p.draft.fields} onChange={(k, v) => p.onField(k, v)} idPrefix={p.id} issues={issuesAt(p.issues, {})} />
         </div>
         <p.Visibility v={p.draft} onChange={p.onVis} />
         <div class="group">

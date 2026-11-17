@@ -10,6 +10,7 @@ mod tree;
 mod validate;
 
 use axum::{
+    http::{header, HeaderValue},
     routing::{get, patch, post},
     Router,
 };
@@ -17,6 +18,7 @@ use sqlx::postgres::PgPoolOptions;
 use std::{path::PathBuf, time::Duration};
 use tower_http::{
     services::{ServeDir, ServeFile},
+    set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
 
@@ -72,9 +74,22 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state);
 
     let index = static_dir.join("index.html");
+    // index.html må ikke caches, ellers får redaktørerne en gammel editor efter en opdatering.
+    // Filerne i assets/ har et hash i navnet og kan caches for evigt.
+    let editor = Router::new()
+        .nest_service("/assets", ServeDir::new(static_dir.join("assets")))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        ))
+        .fallback_service(
+            Router::new()
+                .fallback_service(ServeDir::new(&static_dir).fallback(ServeFile::new(index)))
+                .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"))),
+        );
     let app = Router::new()
         .nest("/api", api)
-        .fallback_service(ServeDir::new(&static_dir).fallback(ServeFile::new(index)))
+        .merge(editor)
         .layer(TraceLayer::new_for_http());
 
     let addr = std::env::var("BIND").unwrap_or_else(|_| "0.0.0.0:8080".into());

@@ -129,13 +129,17 @@ pub async fn page(State(s): State<AppState>, Query(q): Query<PageQ>) -> R<Json<V
     }
     let missing: Vec<&String> = ref_ids
         .iter()
-        .filter(|r| !ds.contains_key(*r) && !sch.contains_key(*r) && !acc.contains_key(*r))
+        // Sider, der linkes til, slås op i `paths` og står ikke i refs.
+        .filter(|r| !ds.contains_key(*r) && !sch.contains_key(*r) && !acc.contains_key(*r) && !paths.contains_key(*r))
         .collect();
 
     let mut sections = sections_out(&data, &all_defs);
     for s in sections.iter_mut() {
         enrich_inline(s, &all_defs);
+        resolve_links(s, &paths);
     }
+    let mut page_fields = data.get("fields").cloned().unwrap_or_else(|| json!({}));
+    resolve_links(&mut page_fields, &paths);
 
     Ok(Json(json!({
         "id": id,
@@ -144,13 +148,37 @@ pub async fn page(State(s): State<AppState>, Query(q): Query<PageQ>) -> R<Json<V
         "version": version,
         "publishedAt": published_at,
         "visibility": { "schedules": "any", "access": "all" },
-        "fields": data.get("fields").cloned().unwrap_or_else(|| json!({})),
+        "fields": page_fields,
         "schedules": data.get("schedules").cloned().unwrap_or_else(|| json!([])),
         "access": data.get("access").cloned().unwrap_or_else(|| json!([])),
         "sections": sections,
         "refs": { "datasources": ds, "schedules": sch, "access": acc },
         "missingRefs": missing,
     })))
+}
+
+/// Links til interne sider (`{ "page": "pg_…" }`) får `href` med sidens sti,
+/// så sitet ikke selv skal slå den op. Stien følger med, hvis siden flyttes.
+fn resolve_links(v: &mut Value, paths: &HashMap<String, String>) {
+    match v {
+        Value::Object(m) => {
+            if m.len() == 1 {
+                if let Some(href) = m.get("page").and_then(Value::as_str).and_then(|id| paths.get(id)).cloned() {
+                    m.insert("href".into(), Value::String(href));
+                    return;
+                }
+            }
+            for (_, x) in m.iter_mut() {
+                resolve_links(x, paths);
+            }
+        }
+        Value::Array(a) => {
+            for x in a {
+                resolve_links(x, paths);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Lokale datasources (`{ "inline": { type, fields } }`) får `source` fra

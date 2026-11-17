@@ -14,7 +14,11 @@ Filerne læses ved hvert kald, så en ændring slår igennem med det samme. Det 
 - [Side og sektion](#side-og-sektion)
 - [Layouts](#layouts)
 - [Felter](#felter)
+  - [Valgmuligheder](#valgmuligheder)
+  - [Betingede felter](#betingede-felter)
 - [Felttyper](#felttyper)
+  - [Links til sider](#links-til-sider)
+  - [Gruppe og liste](#gruppe-og-liste)
 - [Validering](#validering)
 - [Ændringer i eksisterende definitioner](#ændringer-i-eksisterende-definitioner)
 - [Tjek før du committer](#tjek-før-du-committer)
@@ -173,36 +177,110 @@ Hvis du fjerner kolonner fra et layout, der er i brug, bliver elementerne i de o
 
 Et felt er en linje i `fields`. Alle felter har `key` og `type`. Resten afhænger af typen.
 
+### Til alle felter
+
+| Nøgle | Betydning |
+|---|---|
+| `key` | Navnet på værdien i JSON. Starter med et bogstav og indeholder kun bogstaver, tal og `_`. Skal være unik blandt felterne ved siden af. Nøglerne `ref`, `inline`, `page`, `schedules` og `access` er reserveret, fordi API'et bruger dem til at finde referencer. |
+| `type` | En af [felttyperne](#felttyper). |
+| `label` | Teksten over feltet. Uden den vises `key`. |
+| `help` | En hjælpetekst under feltet. Bruges også som fejlbesked, når `pattern` ikke passer. |
+| `required` | `true` betyder, at feltet skal udfyldes, før dokumentet kan publiceres. Tom tekst, en tom liste og en tom gruppe tæller som ikke udfyldt. |
+| `default` | Værdien, der sættes, når elementet eller dokumentet oprettes. Den skal være gyldig for feltet. Kan ikke bruges på `datasource`, `group` og `list` (sæt den på underfelterne). Ændrer du den senere, påvirker det ikke elementer, der allerede er oprettet. |
+| `showWhen` | Vis kun feltet, når et andet felt har en bestemt værdi. Se [Betingede felter](#betingede-felter). |
+
+### Til bestemte typer
+
 | Nøgle | Gælder for | Betydning |
 |---|---|---|
-| `key` | alle | Navnet på værdien i JSON. Starter med et bogstav og indeholder kun bogstaver, tal og `_`. Skal være unik i filen. |
-| `type` | alle | En af [felttyperne](#felttyper). |
-| `label` | alle | Teksten over feltet. Uden den vises `key`. |
-| `help` | alle | En hjælpetekst under feltet. |
-| `required` | alle | `true` betyder, at feltet skal udfyldes, før dokumentet kan publiceres. Tom tekst og en tom liste tæller som ikke udfyldt. |
-| `default` | alle undtagen `datasource` | Værdien, der sættes, når elementet eller dokumentet oprettes. Den skal være gyldig for feltet. Ændrer du den senere, påvirker det ikke elementer, der allerede er oprettet. |
-| `options` | `select`, `multiselect` (påkrævet) | De tilladte værdier. |
+| `placeholder` | `text`, `richtext`, `number`, `link`, `image` | Grå tekst i et tomt felt. Gemmes ikke. |
+| `minLength`, `maxLength` | `text`, `richtext` | Mindste og største antal tegn. Editoren viser en tæller ved `maxLength`. |
+| `pattern` | `text`, `richtext` | Et regulært udtryk, som **hele** værdien skal matche, fx `"[a-z0-9-]+"`. Skriv i `help`, hvad der er tilladt, for den tekst bruges i fejlbeskeden. |
+| `min`, `max` | `number` | Mindste og største tilladte værdi. |
+| `step` | `number` | Værdien skal gå op i `step`, regnet fra `min` (eller 0). |
+| `options` | `select`, `multiselect` (påkrævet) | De tilladte værdier. Se [Valgmuligheder](#valgmuligheder). |
 | `optionsFrom` | `select`, `multiselect` | Henter valgmulighederne fra en anden service, skrevet som `"service:liste"`, fx `"editorial:sections"`. Se note nedenfor. |
-| `max` | `number` | Den største tilladte værdi. |
+| `minItems`, `maxItems` | `multiselect`, `list` | Mindste og største antal valgte værdier eller punkter. |
 | `accepts` | `datasource` (påkrævet) | De datasource-typer, feltet tager imod. |
+| `fields` | `group`, `list` (påkrævet) | Underfelterne. De har de samme muligheder som alle andre felter og kan selv være `group` eller `list`. |
+| `itemLabel` | `list` | Nøglen på det underfelt, hvis værdi bruges som overskrift på hvert punkt i editoren og i fejlbeskeder. |
 
 > **Om `optionsFrom`.** Den henter ikke noget endnu. Indtil den gør, viser editoren `options`, og valideringen accepterer også andre værdier end dem i `options`, fordi listen fra servicen kan være længere.
+
+### Valgmuligheder
+
+`options` kan skrives på to måder, og de kan blandes:
+
+```json
+"options": ["list", "grid"]
+```
+
+```json
+"options": [
+  { "value": "list", "label": "Liste" },
+  { "value": "grid", "label": "Gitter" }
+]
+```
+
+Det er `value`, der gemmes og sendes til sitet. `label` er kun det, redaktøren ser. Derfor kan du roligt ændre en `label`, men ikke en `value`.
+
+### Betingede felter
+
+`showWhen` skjuler et felt, indtil et andet felt **ved siden af** (i samme `fields`) har en bestemt værdi. Brug præcis én af:
+
+| Betingelse | Vises når |
+|---|---|
+| `{ "field": "layout", "equals": "carousel" }` | feltet har præcis den værdi |
+| `{ "field": "layout", "in": ["grid", "carousel"] }` | feltet har en af værdierne |
+| `{ "field": "label", "notEmpty": true }` | feltet er udfyldt (`false`: når det er tomt) |
+
+Har det andet felt ingen værdi, bruges dets `default`.
+
+Et skjult felt valideres ikke, heller ikke `required`. En værdi, der allerede står i det, bliver liggende og sendes stadig til sitet. Sitet skal derfor selv ignorere fx `autoplay`, når `layout` ikke er `carousel`.
 
 ## Felttyper
 
 | Type | Editor | Værdi i JSON | Valideres |
 |---|---|---|---|
-| `text` | Tekstfelt på én linje | `"tekst"` | at det er tekst |
-| `richtext` | Tekstfelt over flere linjer | `"tekst"` | at det er tekst |
-| `number` | Talfelt | `12` | at det er et tal, og at det ikke er over `max` |
+| `text` | Tekstfelt på én linje | `"tekst"` | at det er tekst, `minLength`, `maxLength` og `pattern` |
+| `richtext` | Tekstfelt over flere linjer | `"tekst"` | som `text` |
+| `number` | Talfelt | `12` | at det er et tal, `min`, `max` og `step` |
 | `boolean` | Afkrydsningsfelt | `true` / `false` | at det er sandt eller falsk |
 | `select` | Dropdown | `"newest"` | at værdien findes i `options` |
-| `multiselect` | Chips, der slås til og fra | `["man", "tir"]` | at det er en liste, at alle værdier findes i `options`, og at ingen er valgt to gange |
+| `multiselect` | Chips, der slås til og fra | `["man", "tir"]` | at alle værdier findes i `options`, at ingen er valgt to gange, `minItems` og `maxItems` |
+| `date` | Dato | `"2026-11-18"` | formatet `ÅÅÅÅ-MM-DD`, og at datoen findes |
 | `datetime` | Dato og tid | `"2026-11-18T18:00"` | formatet `ÅÅÅÅ-MM-DDTTT:MM` (sekunder må gerne være med). Uden tidszone. |
 | `time` | Klokkeslæt | `"06:00"` | formatet `TT:MM` |
-| `link` | Tekstfelt | `"/nyheder"` | at det starter med `/`, `#`, `https://`, `http://`, `mailto:` eller `tel:` |
+| `color` | Farvevælger og tekstfelt | `"#e4002b"` | `#rgb`, `#rrggbb` eller `#rrggbbaa` |
+| `link` | Tekstfelt med knappen **Side…** | `"/nyheder"` eller `{ "page": "pg_…" }` | tekst skal starte med `/`, `#`, `https://`, `http://`, `mailto:` eller `tel:`. En side skal findes og være publiceret. |
 | `image` | Tekstfelt (mediearkivet er ikke koblet på endnu) | `"/img/valg.jpg"` | at det er tekst |
 | `datasource` | Vælg en delt datasource eller opret en lokal | `{ "ref": "ds_…" }` eller `{ "inline": { "type": "…", "fields": { … } } }` | at den findes, er af en type i `accepts` og er publiceret. En lokal datasource får sine egne felter valideret. |
+| `group` | En ramme med underfelterne | `{ "label": "…", "link": "…" }` | underfelterne |
+| `list` | Punkter, der kan tilføjes, flyttes og fjernes | `[{ … }, { … }]` | `minItems`, `maxItems` og underfelterne i hvert punkt |
+
+### Links til sider
+
+Vælger redaktøren en side med **Side…**, gemmes sidens id, `{ "page": "pg_kontakt" }`, og ikke stien. Linket virker derfor stadig, når siden flyttes eller omdøbes. I sitets API får linket også den nuværende sti:
+
+```json
+"link": { "page": "pg_kontakt", "href": "/om-os/kontakt" }
+```
+
+Sitet skal altså kunne håndtere et link-felt, der enten er en tekst eller et objekt med `href`.
+
+### Gruppe og liste
+
+```json
+{ "key": "links", "type": "list", "label": "Links", "required": true, "maxItems": 12, "itemLabel": "label",
+  "fields": [
+    { "key": "label", "type": "text", "label": "Tekst", "required": true },
+    { "key": "link", "type": "link", "label": "Link", "required": true }
+  ] }
+```
+
+En `group` samler felter, der hører sammen, fx tekst og link på en knap. Værdien er et objekt. En `list` er en række punkter med de samme felter, og værdien er en liste af objekter. Underfelterne kan være af alle typer, også `datasource`, `group` og `list`.
+
+Fejl i underfelter peger på stien til feltet, fx `links.2.label` og `Linkliste › Links nr. 3 «Sport»`.
 
 En ukendt felttype er en fejl i definitionen, og filen bliver sprunget over. Hvis du har brug for en ny type, skal den laves i både API'et (`api/src/defs.rs` og `api/src/validate.rs`) og editoren (`editor/src/FieldEditor.tsx`).
 
@@ -220,9 +298,13 @@ Det her bliver tjekket:
 
 - at filen er gyldig JSON og ikke har ukendte nøgler,
 - at `type`, `key` og `layout` har gyldige navne og ikke findes to gange,
-- at `select` og `multiselect` har `options`,
-- at `options`, `optionsFrom`, `max` og `accepts` kun bruges på de typer, de hører til,
+- at ingen felter bruger en reserveret nøgle,
+- at `select` og `multiselect` har `options` uden dubletter, og at `group` og `list` har `fields`,
+- at hver egenskab kun bruges på de typer, den hører til, fx `maxLength` kun på tekst,
+- at `min` ≤ `max`, `minLength` ≤ `maxLength`, `minItems` ≤ `maxItems`, og at `step` er større end 0,
+- at `pattern` er et gyldigt regulært udtryk,
 - at `accepts` kun nævner datasource-typer, der findes,
+- at `itemLabel` er et af underfelterne, og at `showWhen` peger på et felt ved siden af,
 - at `default` er gyldig for feltet,
 - at datasource-typer har `source`, og at andre typer ikke har den,
 - at layouts har kolonner, og at bredderne giver 12.
@@ -235,7 +317,7 @@ Det her bliver tjekket:
 
 | Niveau | Eksempler | Blokerer publicering |
 |---|---|---|
-| `error` | Et påkrævet felt er tomt. En værdi er ugyldig. En element-, datasource-, schedule- eller access-type findes ikke længere. En reference peger på noget, der ikke findes eller ikke er publiceret. En datasource er af en type, feltet ikke tager imod. Elementer ligger i en kolonne, layoutet ikke har. | ja |
+| `error` | Et påkrævet felt er tomt. En værdi er ugyldig (også inde i grupper og lister). Et link peger på en side, der ikke findes eller ikke er publiceret. En element-, datasource-, schedule- eller access-type findes ikke længere. En reference peger på noget, der ikke findes eller ikke er publiceret. En datasource er af en type, feltet ikke tager imod. Elementer ligger i en kolonne, layoutet ikke har. | ja |
 | `warning` | Kladden har et felt, som ikke længere findes i definitionen. | nej |
 
 Hvert problem har `location` i klar tekst, fx `Sektion 2 › kolonne 1 › Artikelliste «Sport»`, og `section`, `element` og `field`, så editoren kan finde stedet.
@@ -251,9 +333,11 @@ Sider og dokumenter gemmer kun `type` og `key`, ikke resten af definitionen. Det
 | Nyt felt med `required: true` | Sider med elementet kan ikke publiceres, før feltet er udfyldt. Overvej at tilføje feltet uden `required` først. |
 | Fjern et felt | Værdien bliver liggende i kladderne og giver en advarsel. Sitet får den stadig, indtil den er fjernet. |
 | Omdøb `key` | Svarer til at fjerne et felt og tilføje et nyt. Gamle værdier er ikke flyttet med. |
+| Ny `label` på en valgmulighed | Ingen. Det er `value`, der gemmes. |
+| Nyt `showWhen` | Værdier i felter, der nu er skjult, bliver liggende og sendes stadig til sitet. |
+| Strammere `maxLength`, `pattern`, `min` eller `maxItems` | Eksisterende værdier, der ikke længere passer, giver en fejl. |
 | Fjern en værdi fra `options` | Elementer, der bruger værdien, får en fejl og skal rettes, før de kan publiceres igen. |
 | Omdøb eller slet `type` | Alt, der bruger typen, får en fejl. Det kan ikke publiceres, før det er fjernet eller skiftet. |
-| Gør `max` mindre | Værdier over den nye grænse giver en fejl. |
 
 Hvis en ændring betyder noget for sitet, så tæl elementets `version` op og lær sitet at håndtere begge versioner. Webmasteren migrerer ikke gamle elementer endnu.
 

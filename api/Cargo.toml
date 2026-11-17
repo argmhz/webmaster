@@ -8,11 +8,12 @@ anyhow = "1"
 axum = "0.7"
 chrono = { version = "0.4", features = ["serde"] }
 nanoid = "0.4"
+regex = "1.13.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "json", "chrono", "migrate", "macros"] }
 tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.5", features = ["fs", "trace"] }
+tower-http = { version = "0.5", features = ["fs", "trace", "set-header"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ts-rs = { version = "12.0.1", features = ["serde-json-impl", "chrono-impl"] }
