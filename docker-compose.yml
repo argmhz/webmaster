@@ -21,6 +21,11 @@ services:
     environment:
       DATABASE_URL: postgres://webmaster:webmaster@db:5432/webmaster
       RUST_LOG: info,tower_http=info
+      # Services til optionsFrom (se definitions/services.json). Lokalt peger de på mock.
+      # Fjern en variabel, eller stop mock, for at se editoren bruge reservelisterne.
+      EDITORIAL_URL: http://mock/editorial
+      EDITORIAL_TOKEN: mock
+      CUSTOMER_URL: http://mock/customer
     volumes:
       # Definitionerne læses ved hvert kald, så ændringer slår igennem uden rebuild
       - ./definitions:/app/definitions:ro
@@ -29,6 +34,15 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # Mock af editorial og customer på http://localhost:8090. Appen afhænger ikke af den.
+  mock:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./mock:/usr/share/nginx/html:ro
+      - ./mock/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8090:80"
 
   # Valgfri: editor med hot reload på http://localhost:5173
   #   docker compose --profile dev up

@@ -1,16 +1,24 @@
 import { createSignal, For, Index, Match, Show, Switch } from "solid-js";
-import type { FieldDef, Issue, OptionDef } from "./api";
+import type { FieldDef, Issue, OptionDef, OptionList } from "./api";
 import { DatasourceField } from "./DatasourceField";
-import { defaultsFor, pathOf, tree } from "./store";
+import { defaultsFor, optionList, pathOf, tree } from "./store";
 import { Typeahead } from "./Typeahead";
 
 export const optValue = (o: OptionDef) => (typeof o === "string" ? o : o.value);
 export const optLabel = (o: OptionDef) => (typeof o === "string" ? o : o.label);
+
+/** Valgmulighederne for et felt: listen fra servicen, hvis den kan hentes, ellers `options` (reservelisten). */
+export function optionsOf(def: FieldDef): OptionDef[] {
+  const live = def.optionsFrom ? optionList(def.optionsFrom)?.items : undefined;
+  return live ?? def.options ?? [];
+}
 /** Teksten for en valgt værdi, fx "Karrusel" for "carousel". */
 export const optionLabel = (def: FieldDef, v: string) => {
-  const o = def.options?.find((x) => optValue(x) === v);
+  const o = optionsOf(def).find((x) => optValue(x) === v);
   return o ? optLabel(o) : v;
 };
+/** Over så mange valgmuligheder bliver dropdown og chips til et søgefelt. */
+const SEARCH_FROM = 15;
 
 const empty = (v: unknown) =>
   v == null || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && !v.length) ||
@@ -116,35 +124,11 @@ export function FieldEditor(p: Common & { def: FieldDef; value: any; onChange: (
         </Match>
         <Match when={p.def.type === "select"}>
           <Label />
-          <select id={id()} onChange={(e) => p.onChange(e.currentTarget.value || undefined)}>
-            <option value="" selected={!p.value}>Vælg…</option>
-            <For each={p.def.options ?? []}>{(o) => <option value={optValue(o)} selected={optValue(o) === p.value}>{optLabel(o)}</option>}</For>
-          </select>
+          <SelectInput id={id()} def={p.def} value={p.value} onChange={p.onChange} />
         </Match>
         <Match when={p.def.type === "multiselect"}>
           <Label />
-          <div class="chips" role="group" aria-label={p.def.label}>
-            <For each={p.def.options ?? []}>
-              {(o) => {
-                const v = optValue(o);
-                const on = () => ((p.value as string[] | undefined) ?? []).includes(v);
-                return (
-                  <button
-                    type="button"
-                    class="chip-btn"
-                    classList={{ active: on() }}
-                    aria-pressed={on()}
-                    onClick={() => {
-                      const cur: string[] = p.value ?? [];
-                      p.onChange(on() ? cur.filter((x) => x !== v) : [...cur, v]);
-                    }}
-                  >
-                    {optLabel(o)}
-                  </button>
-                );
-              }}
-            </For>
-          </div>
+          <MultiInput id={id()} def={p.def} value={p.value} onChange={p.onChange} />
         </Match>
         <Match when={p.def.type === "date"}>
           <Label />
@@ -195,7 +179,7 @@ export function FieldEditor(p: Common & { def: FieldDef; value: any; onChange: (
         </Match>
       </Switch>
       <Show when={p.def.optionsFrom}>
-        <div class="help">Valgmulighederne kommer fra <span class="mono">{p.def.optionsFrom}</span></div>
+        <OptionsStatus list={optionList(p.def.optionsFrom!)} source={p.def.optionsFrom!} />
       </Show>
       <Show when={p.def.help}>
         <div class="help">{p.def.help}</div>
@@ -203,6 +187,109 @@ export function FieldEditor(p: Common & { def: FieldDef; value: any; onChange: (
       <Show when={issue()}>
         <div class="field-issue" role="alert">{issue()!.message}</div>
       </Show>
+    </div>
+  );
+}
+
+/** Valgmulighederne plus værdier, der er valgt, men ikke (længere) står i listen, så de kan ses og fjernes. */
+function withMissing(def: FieldDef, values: string[]): OptionDef[] {
+  const opts = optionsOf(def);
+  const missing = values.filter((v) => !opts.some((o) => optValue(o) === v));
+  return [...opts, ...missing.map((v) => ({ value: v, label: `${v} (findes ikke i listen)` }))];
+}
+
+function SelectInput(p: { id: string; def: FieldDef; value: string | undefined; onChange: (v: string | undefined) => void }) {
+  const opts = () => withMissing(p.def, p.value ? [p.value] : []);
+  return (
+    <Show
+      when={opts().length > SEARCH_FROM}
+      fallback={
+        <select id={p.id} onChange={(e) => p.onChange(e.currentTarget.value || undefined)}>
+          <option value="" selected={!p.value}>Vælg…</option>
+          <For each={opts()}>{(o) => <option value={optValue(o)} selected={optValue(o) === p.value}>{optLabel(o)}</option>}</For>
+        </select>
+      }
+    >
+      <div class="search-pick">
+        <Show when={p.value}>
+          <div class="link-chip">
+            <span class="nm">{optLabel(opts().find((o) => optValue(o) === p.value)!)}</span>
+            <span class="spacer" />
+            <button class="ghost icon" title="Fjern" onClick={() => p.onChange(undefined)}>✕</button>
+          </div>
+        </Show>
+        <Typeahead
+          items={opts().filter((o) => optValue(o) !== p.value).map((o) => ({ key: optValue(o), label: optLabel(o), hint: optValue(o) !== optLabel(o) ? optValue(o) : undefined }))}
+          recentKey={"opt." + (p.def.optionsFrom ?? p.def.key)}
+          placeholder={p.value ? "Skift…" : "Søg…"}
+          compact
+          onPick={(i) => p.onChange(i.key)}
+        />
+      </div>
+    </Show>
+  );
+}
+
+function MultiInput(p: { id: string; def: FieldDef; value: string[] | undefined; onChange: (v: string[]) => void }) {
+  const cur = () => p.value ?? [];
+  const opts = () => withMissing(p.def, cur());
+  const toggle = (v: string) => p.onChange(cur().includes(v) ? cur().filter((x) => x !== v) : [...cur(), v]);
+  return (
+    <Show
+      when={opts().length > SEARCH_FROM}
+      fallback={
+        <div class="chips" role="group" aria-label={p.def.label} id={p.id}>
+          <For each={opts()}>
+            {(o) => (
+              <button type="button" class="chip-btn" classList={{ active: cur().includes(optValue(o)) }} aria-pressed={cur().includes(optValue(o))} onClick={() => toggle(optValue(o))}>
+                {optLabel(o)}
+              </button>
+            )}
+          </For>
+        </div>
+      }
+    >
+      <div class="search-pick">
+        <div class="chips" role="group" aria-label={p.def.label}>
+          <For each={cur()} fallback={<span class="muted">Ingen valgt</span>}>
+            {(v) => (
+              <button type="button" class="chip-btn active" title="Fjern" onClick={() => toggle(v)}>
+                {optLabel(opts().find((o) => optValue(o) === v)!)} ✕
+              </button>
+            )}
+          </For>
+        </div>
+        <Typeahead
+          items={opts().filter((o) => !cur().includes(optValue(o))).map((o) => ({ key: optValue(o), label: optLabel(o), hint: optValue(o) !== optLabel(o) ? optValue(o) : undefined }))}
+          recentKey={"opt." + (p.def.optionsFrom ?? p.def.key)}
+          placeholder={`Tilføj… (${opts().length} i alt)`}
+          compact
+          onPick={(i) => toggle(i.key)}
+        />
+      </div>
+    </Show>
+  );
+}
+
+const hhmm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }) : "");
+
+/** Hvor valgmulighederne kommer fra lige nu. */
+export function OptionsStatus(p: { list: OptionList | undefined; source: string }) {
+  const svc = () => p.source.split(":")[0];
+  return (
+    <div class="help opt-status" classList={{ warn: p.list?.status === "stale" || p.list?.status === "fallback" }} title={p.list?.error ?? ""}>
+      <Switch>
+        <Match when={!p.list}>Henter fra <span class="mono">{p.source}</span>…</Match>
+        <Match when={p.list!.status === "fresh"}>
+          Fra <span class="mono">{p.source}</span> · hentet {hhmm(p.list!.fetchedAt)}
+        </Match>
+        <Match when={p.list!.status === "stale"}>
+          {svc()} svarer ikke · viser listen fra {hhmm(p.list!.fetchedAt)}
+        </Match>
+        <Match when={p.list!.status === "fallback"}>
+          Reserveliste · {p.list!.error ?? `${svc()} svarer ikke`}
+        </Match>
+      </Switch>
     </div>
   );
 }

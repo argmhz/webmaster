@@ -17,6 +17,8 @@ RUN touch src/main.rs && cargo build --release
 
 # ---- runtime ----
 FROM debian:bookworm-slim
+# CA-certifikater til https-kald mod servicene (optionsFrom)
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=api /api/target/release/webmaster-api /app/webmaster-api
 COPY --from=editor /editor/dist /app/static

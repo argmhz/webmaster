@@ -6,6 +6,7 @@
             "key": "entitlements",
             "type": "multiselect",
             "label": "Har Entitlement",
+            "optionsFrom": "customer:entitlements",
             "options": [
                 "BRADVIID",
                 "AO2ID",

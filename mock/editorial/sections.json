@@ -1,0 +1,12 @@
+{
+  "data": [
+    { "slug": "indland", "name": "Indland" },
+    { "slug": "udland", "name": "Udland" },
+    { "slug": "sport", "name": "Sport" },
+    { "slug": "kultur", "name": "Kultur" },
+    { "slug": "erhverv", "name": "Erhverv" },
+    { "slug": "motor", "name": "Motor" },
+    { "slug": "tech", "name": "Tech" },
+    { "slug": "klima", "name": "Klima" }
+  ]
+}

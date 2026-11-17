@@ -1,10 +1,11 @@
 import { createSignal, For, Show } from "solid-js";
-import { defs } from "./store";
+import { OptionsStatus } from "./FieldEditor";
+import { defs, optionList } from "./store";
 import { highlight } from "./util";
 
 /** Skrivebeskyttet visning af JSON-definitionerne fra definitions/. */
 export function Definitions() {
-  const groups = () => {
+  const groups = (): { title: string; items: { file: string; data: unknown }[] }[] => {
     const d = defs()!;
     return [
       { title: "Side og sektion", items: [
@@ -16,6 +17,7 @@ export function Definitions() {
       { title: "Datasource-typer", items: d.datasources.map((e) => ({ file: `datasources/${e.type}.json`, data: e })) },
       { title: "Schedule-typer", items: d.schedules.map((e) => ({ file: `schedules/${e.type}.json`, data: e })) },
       { title: "Access-typer", items: d.access.map((e) => ({ file: `access/${e.type}.json`, data: e })) },
+      { title: "Services", items: Object.keys(d.services).length ? [{ file: "services.json", data: d.services }] : [] },
     ];
   };
   const [file, setFile] = createSignal<string>();
@@ -74,11 +76,60 @@ export function Definitions() {
           <span class="muted">Ejes af udviklerne i git · skrivebeskyttet her</span>
         </div>
         <div class="plain-b">
+          <Show when={current().file === "services.json"}>
+            <ServiceStatus />
+          </Show>
           <div class="json">
             <pre innerHTML={highlight(current().data)} />
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+/** Status for hver liste i services.json, og hvilke felter der bruger den. */
+function ServiceStatus() {
+  const rows = () => {
+    const d = defs()!;
+    const users = (key: string) => {
+      const out: string[] = [];
+      const walk = (file: string, fields: { key: string; optionsFrom?: string; fields?: any[] }[]) => {
+        for (const f of fields) {
+          if (f.optionsFrom === key) out.push(`${file} › ${f.key}`);
+          if (f.fields) walk(file, f.fields);
+        }
+      };
+      walk("page", d.page.fields);
+      walk("section", d.section.fields);
+      for (const e of d.elements) walk(e.type, e.fields);
+      for (const x of [...d.datasources, ...d.schedules, ...d.access]) walk(x.type, x.fields);
+      return out;
+    };
+    return Object.entries(d.services).flatMap(([name, svc]) =>
+      Object.keys(svc!.lists).map((list) => ({ key: `${name}:${list}`, users: users(`${name}:${list}`) })),
+    );
+  };
+  return (
+    <div class="svc-status">
+      <p class="help">
+        Webmasteren afhænger ikke af servicene. Svarer en service ikke, bruges den seneste liste, der virkede, og ellers
+        felternes egne <span class="mono">options</span>.
+      </p>
+      <table>
+        <thead><tr><th>Liste</th><th>Status</th><th>Bruges af</th></tr></thead>
+        <tbody>
+          <For each={rows()}>
+            {(r) => (
+              <tr>
+                <td class="mono">{r.key}</td>
+                <td><OptionsStatus list={optionList(r.key)} source={r.key} /><span class="muted">{optionList(r.key)?.items?.length ?? 0} værdier</span></td>
+                <td class="mono muted">{r.users.join(", ") || "ingen"}</td>
+              </tr>
+            )}
+          </For>
+        </tbody>
+      </table>
     </div>
   );
 }

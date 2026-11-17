@@ -19,6 +19,12 @@ export type { FieldType } from "./gen/FieldType";
 export type { LayoutDef } from "./gen/LayoutDef";
 export type { Condition } from "./gen/Condition";
 export type { OptionDef } from "./gen/OptionDef";
+export type { ListDef } from "./gen/ListDef";
+export type { OptionItem } from "./gen/OptionItem";
+export type { OptionStatus } from "./gen/OptionStatus";
+export type { ServiceDef } from "./gen/ServiceDef";
+import type { OptionList } from "./gen/OptionList";
+export type { OptionList };
 export type { RefTypeDef } from "./gen/RefTypeDef";
 
 export type RefKind = Exclude<Kind, "page">;
@@ -59,6 +65,10 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
 
 export const api = {
   defs: () => req<Defs>("GET", "/definitions"),
+
+  /** Valgmuligheder til `optionsFrom`, fx ("editorial", "sections"). Svarer altid, også når servicen er nede. */
+  options: (service: string, list: string) =>
+    req<OptionList>("GET", `/options/${encodeURIComponent(service)}/${encodeURIComponent(list)}`),
 
   tree: () => req<TreeNode[]>("GET", "/tree"),
   createNode: (parent_id: string, title: string) => req<TreeNode>("POST", "/tree", { parent_id, title }),

@@ -1,7 +1,7 @@
 // Global tilstand: definitioner, sidetræ, bibliotek, routing, gem-status og "senest brugt".
 
 import { createSignal, onCleanup } from "solid-js";
-import { api, type Defs, type Doc, type FieldDef, type RefKind, type RefTypeDef, type TreeNode } from "./api";
+import { api, type OptionList, type Defs, type Doc, type FieldDef, type RefKind, type RefTypeDef, type TreeNode } from "./api";
 
 export const [defs, setDefs] = createSignal<Defs>();
 export const [tree, setTree] = createSignal<TreeNode[]>([]);
@@ -139,4 +139,26 @@ export function createAutosave(id: string, body: () => unknown, onSaved: (d: Doc
   };
   onCleanup(() => void flush());
   return { schedule, flush };
+}
+
+/* ---------- valgmuligheder fra services (optionsFrom) ---------- */
+// Én liste pr. "service:liste", delt af alle felter. Hentes igen i baggrunden efter et minut;
+// API'et har sin egen cache og svarer også, når servicen er nede.
+const optionLists = new Map<string, { at: number; get: () => OptionList | undefined; set: (l: OptionList) => void }>();
+export function optionList(key: string): OptionList | undefined {
+  let e = optionLists.get(key);
+  if (!e || Date.now() - e.at > 60_000) {
+    if (!e) {
+      const [get, set] = createSignal<OptionList>();
+      e = { at: 0, get, set };
+      optionLists.set(key, e);
+    }
+    const entry = e;
+    entry.at = Date.now();
+    const [service, list] = key.split(":");
+    api.options(service, list).then(entry.set, (err) =>
+      entry.set({ status: "fallback", items: null, fetchedAt: null, error: "Webmasterens API svarede ikke: " + errMsg(err) }),
+    );
+  }
+  return e.get();
 }

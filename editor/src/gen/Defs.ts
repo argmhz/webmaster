@@ -4,5 +4,10 @@ import type { ElementDef } from "./ElementDef";
 import type { FieldsDef } from "./FieldsDef";
 import type { LayoutDef } from "./LayoutDef";
 import type { RefTypeDef } from "./RefTypeDef";
+import type { ServiceDef } from "./ServiceDef";
 
-export type Defs = { page: FieldsDef, section: FieldsDef, layouts: Array<LayoutDef>, elements: Array<ElementDef>, datasources: Array<RefTypeDef>, schedules: Array<RefTypeDef>, access: Array<RefTypeDef>, problems: Array<DefProblem>, };
+export type Defs = { page: FieldsDef, section: FieldsDef, layouts: Array<LayoutDef>, elements: Array<ElementDef>, datasources: Array<RefTypeDef>, schedules: Array<RefTypeDef>, access: Array<RefTypeDef>, 
+/**
+ * Fra services.json. Kun skabelonerne: værdier fra miljøvariabler (fx tokens) er ikke med.
+ */
+services: { [key in string]: ServiceDef }, problems: Array<DefProblem>, };
