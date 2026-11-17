@@ -449,3 +449,21 @@ details.group[open] > summary::before { content: "▾ "; }
 .ds-preview-list .t, .ds-preview-list .s { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds-preview-list .s { font-size: 11px; }
 .ds-card-p { padding: 0 7px 6px; }
+
+/* login og brugere */
+.login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.login { width: min(340px, 100%); display: flex; flex-direction: column; gap: 6px; padding: 24px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel, rgba(255,255,255,.02)); }
+.login h1 { font-size: 18px; margin: 0 0 10px; }
+.login button { margin-top: 10px; }
+.usermenu { position: relative; margin-left: 8px; }
+.usermenu-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 50; min-width: 240px; display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg, #1b1c20); box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+.usermenu-pop .small { font-size: 11px; }
+.pw-form { display: flex; flex-direction: column; gap: 6px; }
+.pw-form .row { display: flex; gap: 6px; }
+.users { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.users-body { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+.users-table { border-collapse: collapse; width: 100%; max-width: 1000px; }
+.users-table th, .users-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.users-table tr.inactive td { opacity: .5; }
+.new-user { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: 1000px; }
+.new-user input { flex: 1; min-width: 160px; }

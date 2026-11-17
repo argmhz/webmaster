@@ -1,3 +1,4 @@
+mod auth;
 mod defs;
 mod documents;
 mod error;
@@ -11,6 +12,7 @@ mod services;
 mod site;
 mod tree;
 mod validate;
+mod webhook;
 
 use axum::{
     http::{header, HeaderValue},
@@ -30,6 +32,7 @@ pub struct AppState {
     pub db: sqlx::PgPool,
     pub defs_dir: PathBuf,
     pub options: std::sync::Arc<services::OptionsCache>,
+    pub webhooks: std::sync::Arc<webhook::Webhooks>,
 }
 
 #[tokio::main]
@@ -49,16 +52,29 @@ async fn main() -> anyhow::Result<()> {
     if let Ok(seed_file) = std::env::var("SEED_FILE") {
         seed::run(&db, &seed_file).await?;
     }
+    auth::bootstrap(&db).await?;
+    if std::env::var("SITE_PREVIEW_TOKEN").map_or(true, |t| t.is_empty()) {
+        tracing::warn!("SITE_PREVIEW_TOKEN er ikke sat: kun indloggede kan se kladder via /api/site");
+    }
 
     let defs_dir = PathBuf::from(std::env::var("DEFINITIONS_DIR").unwrap_or_else(|_| "../definitions".into()));
     let static_dir = PathBuf::from(std::env::var("STATIC_DIR").unwrap_or_else(|_| "./static".into()));
     for p in defs::load(&defs_dir).problems {
         tracing::warn!("definitions/{}: {}", p.file, p.message);
     }
-    let state = AppState { db, defs_dir, options: std::sync::Arc::new(services::OptionsCache::new()) };
+    let state = AppState {
+        db,
+        defs_dir,
+        options: std::sync::Arc::new(services::OptionsCache::new()),
+        webhooks: std::sync::Arc::new(webhook::Webhooks::from_env()),
+    };
 
-    let api = Router::new()
-        // editor
+    // Editoren: kræver login. Rollerne tjekkes i de enkelte handlers.
+    let editor_api = Router::new()
+        .route("/auth/me", get(auth::me))
+        .route("/auth/password", post(auth::change_password))
+        .route("/users", get(auth::list_users).post(auth::create_user))
+        .route("/users/:id", patch(auth::update_user))
         .route("/definitions", get(defs::get_all))
         .route("/options/:service/:list", get(services::get_options))
         .route("/datasources/preview", post(previews::post_preview))
@@ -73,11 +89,19 @@ async fn main() -> anyhow::Result<()> {
         .route("/documents/:id/used-by", get(documents::used_by))
         .route("/documents/:id/issues", get(validate::get_issues))
         .route("/redirects", get(redirects::list).put(redirects::replace))
-        // sitet (kun konfiguration – sitet resolver selv datasources, schedules og access)
+        .route_layer(axum::middleware::from_fn_with_state(state.clone(), auth::require_login));
+
+    let api = Router::new()
+        .merge(editor_api)
+        .route("/auth/login", post(auth::login))
+        .route("/auth/logout", post(auth::logout))
+        // sitet (kun konfiguration – sitet resolver selv datasources, schedules og access).
+        // Offentligt, men ?preview=true kræver X-Preview-Token eller login.
         .route("/site/page", get(site::page))
         .route("/site/tree", get(site::tree))
         .route("/site/globals", get(site::globals))
         .route("/site/redirects", get(redirects::list))
+        .layer(axum::middleware::from_fn(auth::csrf))
         .with_state(state);
 
     let index = static_dir.join("index.html");

@@ -26,6 +26,16 @@ services:
       EDITORIAL_URL: http://mock/editorial
       EDITORIAL_TOKEN: mock
       CUSTOMER_URL: http://mock/customer
+      # Kun til lokal udvikling. Den første admin oprettes, når der ingen brugere er.
+      ADMIN_EMAIL: admin@webmaster.test
+      ADMIN_PASSWORD: webmaster-lokal
+      # Sitet sender den i X-Preview-Token for at se kladder (?preview=true).
+      SITE_PREVIEW_TOKEN: lokal-preview-token
+      # Sæt til true bag https, så cookien kun sendes krypteret.
+      COOKIE_SECURE: "false"
+      # Webhook ved publicering, fx til sitets cache-rydning. Kommasepareret.
+      # PUBLISH_WEBHOOK_URLS: http://site:3000/api/revalidate
+      # PUBLISH_WEBHOOK_SECRET: lokal-webhook-nøgle
     volumes:
       # Definitionerne læses ved hvert kald, så ændringer slår igennem uden rebuild
       - ./definitions:/app/definitions:ro

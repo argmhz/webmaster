@@ -8,7 +8,7 @@ use crate::{
 };
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use chrono::{DateTime, Utc};
@@ -42,6 +42,33 @@ fn compute_paths(nodes: &[NodeRow]) -> HashMap<String, String> {
         .collect()
 }
 
+/// Stien til hver side, nøglet på id.
+pub async fn all_paths(db: &sqlx::PgPool) -> R<HashMap<String, String>> {
+    let nodes: Vec<NodeRow> = sqlx::query_as("select id, parent_id, slug from nodes").fetch_all(db).await?;
+    Ok(compute_paths(&nodes))
+}
+
+/// Stier, der er ændret eller forsvundet mellem `before` og `after` (både gammel og ny sti).
+pub fn changed_paths(before: &HashMap<String, String>, after: &HashMap<String, String>) -> Vec<String> {
+    let mut out: Vec<String> = vec![];
+    for (id, old) in before {
+        if after.get(id) != Some(old) {
+            out.push(old.clone());
+            if let Some(new) = after.get(id) {
+                out.push(new.clone());
+            }
+        }
+    }
+    for (id, new) in after {
+        if !before.contains_key(id) {
+            out.push(new.clone());
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
 fn normalize(path: &str) -> String {
     let p = path.trim().trim_end_matches('/');
     if p.is_empty() {
@@ -60,7 +87,10 @@ pub struct PageQ {
     preview: bool,
 }
 
-pub async fn page(State(s): State<AppState>, Query(q): Query<PageQ>) -> R<Json<Value>> {
+pub async fn page(State(s): State<AppState>, headers: HeaderMap, Query(q): Query<PageQ>) -> R<Json<Value>> {
+    if q.preview {
+        crate::auth::preview_allowed(&s.db, &headers).await?;
+    }
     let all_defs = defs::load(&s.defs_dir);
     let nodes: Vec<NodeRow> = sqlx::query_as("select id, parent_id, slug from nodes").fetch_all(&s.db).await?;
     let paths = compute_paths(&nodes);
@@ -275,7 +305,10 @@ pub struct TreeQ {
     preview: bool,
 }
 
-pub async fn tree(State(s): State<AppState>, Query(q): Query<TreeQ>) -> R<Json<Value>> {
+pub async fn tree(State(s): State<AppState>, headers: HeaderMap, Query(q): Query<TreeQ>) -> R<Json<Value>> {
+    if q.preview {
+        crate::auth::preview_allowed(&s.db, &headers).await?;
+    }
     let rows: Vec<(String, Option<String>, String, String, bool)> = sqlx::query_as(
         "select n.id, n.parent_id, n.slug, n.title, (p.document_id is not null)
            from nodes n left join publications p on p.document_id = n.id
@@ -301,7 +334,10 @@ pub struct GlobalsQ {
 
 /// Alle globals, nøglet på typen. En type med `multiple` giver en liste, ellers ét objekt
 /// (eller `null`, hvis den ikke er oprettet og publiceret).
-pub async fn globals(State(s): State<AppState>, Query(q): Query<GlobalsQ>) -> R<Json<Value>> {
+pub async fn globals(State(s): State<AppState>, headers: HeaderMap, Query(q): Query<GlobalsQ>) -> R<Json<Value>> {
+    if q.preview {
+        crate::auth::preview_allowed(&s.db, &headers).await?;
+    }
     let all_defs = defs::load(&s.defs_dir);
     let sql = if q.preview {
         "select d.id, d.type, d.name, d.draft, null::bigint, null::timestamptz from documents d where d.kind = 'global' order by lower(d.name)"

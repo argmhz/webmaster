@@ -10,6 +10,7 @@ import { plainText } from "./RichText";
 import {
   createAutosave, defaultsFor, defs, docById, elDef, errMsg, layoutOf, navigate, pathOf, refreshTree, route, status,
   toast, touchRecent, tree, typeLabel, uid,
+  can, needs,
 } from "./store";
 import { TreePanel } from "./Tree";
 import { Typeahead } from "./Typeahead";
@@ -508,8 +509,8 @@ function PageWorkspace(p: { doc: Doc }) {
           <a class="btn" href={api.sitePageUrl(pathOf(id), true)} target="_blank" rel="noreferrer">Preview</a>
           <button
             class="primary"
-            disabled={(meta().published_version != null && !meta().changed) || errorsOf(issues()).length > 0}
-            title={errorsOf(issues()).length ? "Ret fejlene før siden kan publiceres" : ""}
+            disabled={(meta().published_version != null && !meta().changed) || errorsOf(issues()).length > 0 || !can("publisher")}
+            title={needs("publisher") || (errorsOf(issues()).length ? "Ret fejlene før siden kan publiceres" : "")}
             onClick={publish}
           >
             Publicér
@@ -744,7 +745,7 @@ function PageInspector(p: {
           </div>
           <div class="field">
             <label class="flabel" for="node-slug"><span>Slug</span><em class="mono">{pathOf(p.id)}</em></label>
-            <input id="node-slug" class="mono" value={slug()} disabled={!node()?.parent_id} onInput={(e) => { setSlug(e.currentTarget.value); saveNode({ slug: e.currentTarget.value }); }} />
+            <input id="node-slug" class="mono" value={slug()} disabled={!node()?.parent_id || !can("publisher")} title={needs("publisher")} onInput={(e) => { setSlug(e.currentTarget.value); saveNode({ slug: e.currentTarget.value }); }} />
           </div>
         </div>
         <div class="group">

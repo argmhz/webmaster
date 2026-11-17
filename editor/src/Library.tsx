@@ -8,6 +8,7 @@ import { KindIcon } from "./icons";
 import {
   createAutosave, defaultsFor, errMsg, KIND, library, navigate, refType, refTypes, refreshLibrary, route, status, toast,
   typeLabel,
+  can, needs,
 } from "./store";
 import { fuzzy, highlight } from "./util";
 
@@ -186,8 +187,8 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
         <span class={`status ${st().cls}`}><span class={`dot ${st().cls}`} />{st().label}</span>
         <button
           class="primary"
-          disabled={(meta().published_version != null && !meta().changed) || errorsOf(issues()).length > 0}
-          title={errorsOf(issues()).length ? "Ret fejlene før den kan publiceres" : ""}
+          disabled={(meta().published_version != null && !meta().changed) || errorsOf(issues()).length > 0 || !can("publisher")}
+          title={needs("publisher") || (errorsOf(issues()).length ? "Ret fejlene før den kan publiceres" : "")}
           onClick={publish}
         >
           Publicér
@@ -218,7 +219,7 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
             />
           </div>
           <div class="group">
-            <button class="danger" disabled={(usedBy()?.length ?? 0) > 0} title={(usedBy()?.length ?? 0) > 0 ? "Fjern den fra siderne først" : ""} onClick={remove}>
+            <button class="danger" disabled={(usedBy()?.length ?? 0) > 0 || !can("publisher")} title={needs("publisher") || ((usedBy()?.length ?? 0) > 0 ? "Fjern den fra siderne først" : "")} onClick={remove}>
               Slet {KIND[p.kind].one}
             </button>
           </div>

@@ -1,14 +1,28 @@
 //! Sidetræet. Hver node har et side-dokument med samme id.
 
 use crate::{
+    auth::{require, Role, User},
     error::{AppError, R},
-    ids, AppState,
+    ids,
+    site::{all_paths, changed_paths},
+    webhook::{Event, Webhooks},
+    AppState,
 };
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use std::collections::HashMap;
+
+/// Sender en webhook, hvis stier på sitet er ændret.
+async fn notify(s: &AppState, before: &HashMap<String, String>, id: &str, by: &str) -> R<()> {
+    let paths = changed_paths(before, &all_paths(&s.db).await?);
+    if !paths.is_empty() {
+        s.webhooks.send(Webhooks::body(Event::Tree, Some(id), Some("page"), None, paths, by));
+    }
+    Ok(())
+}
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use ts_rs::TS;
@@ -79,7 +93,7 @@ pub struct CreateNode {
     slug: Option<String>,
 }
 
-pub async fn create(State(s): State<AppState>, Json(b): Json<CreateNode>) -> R<Json<Node>> {
+pub async fn create(State(s): State<AppState>, Extension(u): Extension<User>, Json(b): Json<CreateNode>) -> R<Json<Node>> {
     let id = ids::new("pg");
     let base = slugify(b.slug.as_deref().unwrap_or(&b.title));
     let base = if base.is_empty() { "side".to_string() } else { base };
@@ -96,10 +110,11 @@ pub async fn create(State(s): State<AppState>, Json(b): Json<CreateNode>) -> R<J
         .fetch_one(&mut *tx)
         .await?;
     let draft = json!({ "fields": { "title": b.title }, "schedules": [], "access": [], "sections": [] });
-    sqlx::query("insert into documents (id, kind, name, draft) values ($1, 'page', $2, $3)")
+    sqlx::query("insert into documents (id, kind, name, draft, updated_by) values ($1, 'page', $2, $3, $4)")
         .bind(&id)
         .bind(&b.title)
         .bind(&draft)
+        .bind(&u.email)
         .execute(&mut *tx)
         .await?;
     sqlx::query("insert into nodes (id, parent_id, slug, title, sort) values ($1, $2, $3, $4, $5)")
@@ -120,7 +135,12 @@ pub struct UpdateNode {
     slug: Option<String>,
 }
 
-pub async fn update(State(s): State<AppState>, Path(id): Path<String>, Json(b): Json<UpdateNode>) -> R<Json<Node>> {
+pub async fn update(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>, Json(b): Json<UpdateNode>) -> R<Json<Node>> {
+    // Navnet er kun en kladde-ting; en ny slug ændrer adressen på sitet med det samme.
+    if b.slug.is_some() {
+        require(&u, Role::Publisher)?;
+    }
+    let before = all_paths(&s.db).await?;
     let mut tx = s.db.begin().await?;
     let parent: Option<Option<String>> = sqlx::query_scalar("select parent_id from nodes where id = $1")
         .bind(&id)
@@ -152,6 +172,7 @@ pub async fn update(State(s): State<AppState>, Path(id): Path<String>, Json(b): 
         sqlx::query("update nodes set slug = $2 where id = $1").bind(&id).bind(&slug).execute(&mut *tx).await?;
     }
     tx.commit().await?;
+    notify(&s, &before, &id, &u.email).await?;
     Ok(Json(one(&s.db, &id).await?))
 }
 
@@ -161,7 +182,9 @@ pub struct MoveNode {
     index: usize,
 }
 
-pub async fn move_node(State(s): State<AppState>, Path(id): Path<String>, Json(b): Json<MoveNode>) -> R<StatusCode> {
+pub async fn move_node(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>, Json(b): Json<MoveNode>) -> R<StatusCode> {
+    require(&u, Role::Publisher)?;
+    let before = all_paths(&s.db).await?;
     let mut tx = s.db.begin().await?;
     let all: Vec<(String, Option<String>, String)> = sqlx::query_as("select id, parent_id, slug from nodes")
         .fetch_all(&mut *tx)
@@ -207,10 +230,13 @@ pub async fn move_node(State(s): State<AppState>, Path(id): Path<String>, Json(b
             .await?;
     }
     tx.commit().await?;
+    notify(&s, &before, &id, &u.email).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> R<StatusCode> {
+pub async fn remove(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>) -> R<StatusCode> {
+    require(&u, Role::Publisher)?;
+    let before = all_paths(&s.db).await?;
     let all: Vec<(String, Option<String>)> = sqlx::query_as("select id, parent_id from nodes").fetch_all(&s.db).await?;
     let me = all.iter().find(|n| n.0 == id).ok_or_else(|| AppError::not_found("Siden"))?;
     if me.1.is_none() {
@@ -225,5 +251,7 @@ pub async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> R<Stat
         i += 1;
     }
     sqlx::query("delete from documents where id = any($1)").bind(&subtree).execute(&s.db).await?;
+    tracing::info!(page = %id, pages = subtree.len(), by = u.email, "side slettet");
+    notify(&s, &before, &id, &u.email).await?;
     Ok(StatusCode::NO_CONTENT)
 }
