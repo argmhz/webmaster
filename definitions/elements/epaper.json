@@ -1,0 +1,9 @@
+{
+  "type": "epaper", "version": 1, "label": "E-avis",
+  "fields": [
+    {"key": "title", "type": "text", "label": "Overskrift", "default": "Dagens e-avis"},
+    {"key": "section", "type": "select", "label": "Udgivelse", "required": true, "default": "2723", "options": [{"value": "2723", "label": "Børsen"}, {"value": "6299", "label": "Pleasure"}, {"value": "6384", "label": "Ejendomme"}, {"value": "6398", "label": "Bæredygtig"}, {"value": "6406", "label": "Ledelse"}, {"value": "6434", "label": "AI"}, {"value": "6527", "label": "Weekend"}, {"value": "6529", "label": "Biler"}, {"value": "6531", "label": "Bolig"}, {"value": "6533", "label": "Rejser"}, {"value": "6785", "label": "Verden"}, {"value": "6789", "label": "Annonceomslag"}, {"value": "6791", "label": "Erhversejendomme"}, {"value": "6793", "label": "Liebhaver"}, {"value": "6795", "label": "Gazelle"}, {"value": "6797", "label": "Top1000"}, {"value": "6799", "label": "Møder & Konferencer"}, {"value": "6801", "label": "Logistik"}, {"value": "6803", "label": "Byggeri"}, {"value": "6805", "label": "Tech"}, {"value": "6807", "label": "Pleasure Tema"}, {"value": "6817", "label": "Marketing"}]},
+    {"key": "issueId", "type": "text", "label": "Udgave-id", "help": "Tom: den nyeste udgave."},
+    {"key": "newTab", "type": "boolean", "label": "Åbn i nyt faneblad", "default": false}
+  ]
+}

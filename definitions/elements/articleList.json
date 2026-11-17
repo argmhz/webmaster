@@ -1,16 +1,19 @@
 {
-  "type": "articleList", "version": 1, "label": "Artikelliste",
+  "type": "articleList", "version": 2, "label": "Artikelliste", "description": "En liste af artikler fra en datasource, fx seneste, mest læste eller et tag.",
   "fields": [
-    { "key": "title", "type": "text", "label": "Overskrift", "required": true, "maxLength": 80 },
-    { "key": "layout", "type": "select", "label": "Visning", "default": "list",
-      "options": [
-        { "value": "list", "label": "Liste" },
-        { "value": "grid", "label": "Gitter" },
-        { "value": "carousel", "label": "Karrusel" }
-      ] },
-    { "key": "autoplay", "type": "boolean", "label": "Skift automatisk", "default": false,
-      "showWhen": { "field": "layout", "equals": "carousel" } },
-    { "key": "showImages", "type": "boolean", "label": "Vis billeder", "default": true },
-    { "key": "articles", "type": "datasource", "label": "Artikler", "required": true, "accepts": ["articleQuery", "articlePicks", "mostRead"] }
+    {"key": "title", "type": "text", "label": "Overskrift", "maxLength": 80, "showWhen": {"field": "listType", "in": ["dateAndMinutesCount", "date", "numbered", "dateAndMinutesCountAndSection", "thumbnail", "play", "sponsored", "horizontalScrolling", "continuousScrolling", "verticalTimeline"]}},
+    {"key": "listType", "type": "select", "label": "Visning", "required": true, "default": "dateAndMinutesCount", "options": [{"value": "dateAndMinutesCount", "label": "Dato og læsetid"}, {"value": "date", "label": "Dato"}, {"value": "numbered", "label": "Nummereret"}, {"value": "dateAndMinutesCountAndSection", "label": "Dato, læsetid og sektion"}, {"value": "thumbnail", "label": "Med små billeder"}, {"value": "play", "label": "Som Play-klip"}, {"value": "sectionOnly", "label": "Kun sektion (uden dato)"}, {"value": "sponsored", "label": "Sponsoreret"}, {"value": "horizontalScrolling", "label": "Vandret scroll"}, {"value": "continuousScrolling", "label": "Uendelig scroll"}, {"value": "verticalTimeline", "label": "Lodret tidslinje"}]},
+    {"key": "largeFirst", "type": "boolean", "label": "Første artikel stor", "default": false, "showWhen": {"field": "listType", "equals": "sectionOnly"}},
+    {"key": "articles", "type": "datasource", "label": "Artikler", "required": true, "accepts": ["feed", "tagFeed", "tagMix", "profileFeed", "themeFeed", "opinionDeck", "sponsoredTag", "kilkayaStream", "cxenseWidget", "searchResults", "userArticles", "articleQuery", "articlePicks", "mostRead"]},
+    {"key": "amount", "type": "number", "label": "Antal", "required": true, "default": 10, "min": 1, "max": 100, "step": 1},
+    {"key": "offset", "type": "number", "label": "Spring over", "default": 0, "min": 0, "max": 100, "step": 1, "help": "Antal artikler fra toppen, der ikke vises (fx fordi de står i et andet element)."},
+    {"key": "pagination", "type": "boolean", "label": "Vis sideskift", "default": false},
+    {"key": "showMore", "type": "boolean", "label": "Vis link til flere artikler", "default": false},
+    {"key": "moreLabel", "type": "text", "label": "Linktekst", "required": true, "default": "Se flere", "showWhen": {"field": "showMore", "equals": true}},
+    {"key": "moreLink", "type": "link", "label": "Link", "required": true, "showWhen": {"field": "showMore", "equals": true}},
+    {"key": "ads", "type": "list", "label": "Annoncer i listen", "help": "Annoncer, der indsættes mellem artiklerne.", "fields": [
+        {"key": "position", "type": "number", "label": "Efter artikel nr.", "required": true, "min": 0, "max": 100, "step": 1},
+        {"key": "hideOn", "type": "multiselect", "label": "Skjul på", "options": [{"value": "desktop", "label": "Desktop"}, {"value": "tablet", "label": "Tablet"}, {"value": "mobile", "label": "Mobil"}]}
+      ] }
   ]
 }

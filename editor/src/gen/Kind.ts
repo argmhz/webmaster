@@ -3,4 +3,4 @@
 /**
  * Dokumentets slags. I databasen er det en tekst; typen er her for TypeScript.
  */
-export type Kind = "page" | "datasource" | "schedule" | "access";
+export type Kind = "page" | "datasource" | "schedule" | "access" | "global";

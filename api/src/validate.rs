@@ -54,6 +54,14 @@ pub struct RefInfo {
 
 /* ---------- enkelte værdier ---------- */
 
+/// Tom værdi for netop dette felt. Formateret tekst uden tekst tæller som tom.
+fn is_empty_for(fd: &FieldDef, v: Option<&Value>) -> bool {
+    match (fd.field_type, v) {
+        (FieldType::Richtext, Some(v @ Value::Object(_))) => crate::richtext::is_empty(v),
+        _ => is_empty(v),
+    }
+}
+
 fn is_empty(v: Option<&Value>) -> bool {
     match v {
         None | Some(Value::Null) => true,
@@ -64,11 +72,11 @@ fn is_empty(v: Option<&Value>) -> bool {
     }
 }
 
-fn is_link(s: &str) -> bool {
+pub fn is_link(s: &str) -> bool {
     ["/", "#", "https://", "http://", "mailto:", "tel:"].iter().any(|p| s.starts_with(p))
 }
 
-fn is_color(s: &str) -> bool {
+pub fn is_color(s: &str) -> bool {
     let h = s.strip_prefix('#').unwrap_or("");
     matches!(h.len(), 3 | 6 | 8) && h.chars().all(|c| c.is_ascii_hexdigit())
 }
@@ -83,7 +91,44 @@ pub fn check_value(fd: &FieldDef, v: &Value) -> Option<String> {
     use FieldType::*;
     let want = |what: &str| Some(format!("skal være {what}"));
     match fd.field_type {
-        Text | Richtext => {
+        Richtext => {
+            if let Some(m) = crate::richtext::check(v) {
+                return Some(m);
+            }
+            let n = crate::richtext::text_len(v) as u32;
+            if let Some(m) = fd.min_length.filter(|m| n < *m) {
+                return Some(format!("skal være mindst {m} tegn"));
+            }
+            if let Some(m) = fd.max_length.filter(|m| n > *m) {
+                return Some(format!("må højst være {m} tegn (er {n})"));
+            }
+            None
+        }
+        Tags => {
+            let Some(a) = v.as_array() else { return want("en liste af tekster") };
+            let mut seen = vec![];
+            for x in a {
+                let Some(s) = x.as_str() else { return want("en liste af tekster") };
+                if s.trim().is_empty() {
+                    return Some("må ikke indeholde tomme punkter".into());
+                }
+                if seen.contains(&s) {
+                    return Some(format!("«{s}» står der flere gange"));
+                }
+                if let Some(p) = &fd.pattern {
+                    let ok = regex::Regex::new(&format!("^(?:{p})$")).map(|r| r.is_match(s)).unwrap_or(true);
+                    if !ok {
+                        return Some(match &fd.help {
+                            Some(h) => format!("«{s}» har ikke det rigtige format. {h}"),
+                            None => format!("«{s}» har ikke det rigtige format ({p})"),
+                        });
+                    }
+                }
+                seen.push(s);
+            }
+            check_count(fd, a.len())
+        }
+        Text | Textarea => {
             let Some(s) = v.as_str() else { return want("tekst") };
             let n = s.chars().count() as u32;
             if let Some(m) = fd.min_length.filter(|m| n < *m) {
@@ -167,6 +212,9 @@ pub fn check_value(fd: &FieldDef, v: &Value) -> Option<String> {
             _ => Some("skal være et klokkeslæt som TT:MM".into()),
         },
         Color => match v.as_str() {
+            Some(s) if fd.options.as_ref().is_some_and(|o| !o.iter().any(|x| x.value().eq_ignore_ascii_case(s))) => {
+                Some(format!("«{s}» er ikke en af farverne i paletten"))
+            }
             Some(s) if is_color(s) => None,
             _ => Some("skal være en farve som #rrggbb".into()),
         },
@@ -285,7 +333,7 @@ impl V<'_> {
                 continue;
             }
             let v = obj.get(&fd.key);
-            if is_empty(v) {
+            if is_empty_for(fd, v) {
                 if fd.required {
                     self.err(loc, f, format!("{} skal udfyldes", fd.label()));
                 }
@@ -388,7 +436,7 @@ impl V<'_> {
         }
     }
 
-    /// `schedules` og `access` på side, sektion og element.
+    /// `schedules`, `access` og `accessMatch` på side, sektion og element.
     fn visibility(&mut self, loc: &Loc, obj: &Value) {
         for (key, kind, what) in [("schedules", "schedule", "schedulen"), ("access", "access", "access-reglen")] {
             match obj.get(key) {
@@ -406,6 +454,11 @@ impl V<'_> {
                 Some(_) => self.err(loc, None, format!("«{key}» skal være en liste")),
             }
         }
+        match obj.get("accessMatch") {
+            None | Some(Value::Null) => {}
+            Some(Value::String(m)) if m == "all" || m == "any" => {}
+            Some(_) => self.err(loc, None, "«accessMatch» skal være \"all\" eller \"any\""),
+        }
     }
 
     fn page(&mut self, draft: &Value) {
@@ -420,29 +473,45 @@ impl V<'_> {
         for (si, s) in sections.iter().enumerate() {
             let sid = s.get("id").and_then(Value::as_str).map(String::from);
             let sloc = Loc { text: format!("Sektion {}", si + 1), section: sid, element: None };
-            let layout = s.get("layout").and_then(Value::as_str).unwrap_or("");
-            let width = match self.defs.layout(layout) {
-                Some(l) => l.columns.len(),
-                None => {
-                    self.err(&sloc, None, format!("layoutet «{layout}» findes ikke"));
-                    usize::MAX
-                }
-            };
             self.fields(&sloc, "", &self.defs.section.fields.clone(), s.get("settings"));
             self.visibility(&sloc, s);
-            let cols = s.get("columns").and_then(Value::as_array).cloned().unwrap_or_default();
-            for (ci, col) in cols.iter().enumerate() {
-                let els = col.as_array().cloned().unwrap_or_default();
-                if ci >= width && !els.is_empty() {
-                    self.err(
-                        &sloc,
-                        None,
-                        format!("kolonne {} findes ikke i layoutet «{layout}», så {} element(er) bliver ikke vist", ci + 1, els.len()),
-                    );
+            self.columns(&sloc, s);
+            match s.get("fallback") {
+                None | Some(Value::Null) => {}
+                Some(fb @ Value::Object(_)) => {
+                    let has_access = s.get("access").and_then(Value::as_array).is_some_and(|a| !a.is_empty());
+                    if !has_access {
+                        self.warn(&sloc, None, "sektionen har indhold uden adgang, men ingen access-regler, så det bliver aldrig vist");
+                    }
+                    self.columns(&sloc.child("uden adgang"), fb);
                 }
-                for e in &els {
-                    self.element(&sloc, ci, e);
-                }
+                Some(_) => self.err(&sloc, None, "«fallback» skal være et objekt med layout og kolonner"),
+            }
+        }
+    }
+
+    /// Layout og kolonner. Bruges både til sektionen og til dens indhold uden adgang.
+    fn columns(&mut self, sloc: &Loc, s: &Value) {
+        let layout = s.get("layout").and_then(Value::as_str).unwrap_or("");
+        let width = match self.defs.layout(layout) {
+            Some(l) => l.columns.len(),
+            None => {
+                self.err(sloc, None, format!("layoutet «{layout}» findes ikke"));
+                usize::MAX
+            }
+        };
+        let cols = s.get("columns").and_then(Value::as_array).cloned().unwrap_or_default();
+        for (ci, col) in cols.iter().enumerate() {
+            let els = col.as_array().cloned().unwrap_or_default();
+            if ci >= width && !els.is_empty() {
+                self.err(
+                    sloc,
+                    None,
+                    format!("kolonne {} findes ikke i layoutet «{layout}», så {} element(er) bliver ikke vist", ci + 1, els.len()),
+                );
+            }
+            for e in &els {
+                self.element(sloc, ci, e);
             }
         }
     }
@@ -451,7 +520,9 @@ impl V<'_> {
         let ty = e.get("type").and_then(Value::as_str).unwrap_or("");
         let def = self.defs.element(ty).cloned();
         let label = def.as_ref().map(|d| d.label.clone()).unwrap_or_else(|| ty.into());
-        let title = e.pointer("/fields/title").and_then(Value::as_str).filter(|t| !t.is_empty());
+        let title = ["title", "headline", "headlineText"]
+            .iter()
+            .find_map(|k| e.get("fields").and_then(|f| f.get(*k)).and_then(Value::as_str).filter(|t| !t.is_empty()));
         let name = match title {
             Some(t) => format!("{label} «{t}»"),
             None => label,
@@ -462,6 +533,7 @@ impl V<'_> {
             return self.err(&loc, None, format!("elementtypen «{ty}» findes ikke længere i definitions/"));
         };
         self.fields(&loc, "", &def.fields, e.get("fields"));
+        self.fields(&loc, "settings.", &self.defs.element.fields.clone(), e.get("settings"));
         self.visibility(&loc, e);
     }
 }
@@ -643,7 +715,7 @@ mod tests {
                     [
                         { "id": "e3", "type": "countdown", "fields": { "title": "T", "until": "2026-11-18T20:00",
                           "cta": { "label": "", "link": "ikke et link" } } },
-                        { "id": "e4", "type": "articleList", "fields": { "title": "x", "layout": "list", "autoplay": "ja",
+                        { "id": "e4", "type": "articleList", "fields": { "title": "x", "listType": "numbered", "amount": 5, "showMore": false, "moreLink": "ikke et link",
                           "articles": { "inline": { "type": "mostRead", "fields": { "limit": 0 } } } } }
                     ]
                 ]
@@ -661,9 +733,69 @@ mod tests {
         has("Links nr. 3 «Ukendt» [links.2.link] – siden «pg_findes_ikke» findes ikke");
         has("[links] – Links skal udfyldes");
         has("[articles.inline.fields.limit] – Antal skal være mindst 1");
-        // Skjulte felter valideres ikke: link uden cta-tekst og autoplay uden karrusel
+        // Skjulte felter valideres ikke: link uden cta-tekst og «flere»-link, når det er slået fra
         hasnt("cta.link");
-        hasnt("autoplay");
+        hasnt("moreLink");
+    }
+
+    #[test]
+    fn new_field_types_settings_and_access() {
+        let defs = defs();
+        let refs: HashMap<String, RefInfo> = [(
+            "acc_a".to_string(),
+            RefInfo { kind: "access".into(), doc_type: Some("hasTag".into()), name: "Tag".into(), published: true },
+        )]
+        .into();
+        let doc = |text: &str| json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": text }] }] });
+        let draft = json!({
+            "fields": { "title": "Side", "keywords": ["a", "a"] }, "accessMatch": "some",
+            "sections": [{
+                "id": "s1", "layout": "1", "access": ["acc_a"], "accessMatch": "any",
+                "columns": [[
+                    { "id": "e1", "type": "text", "fields": { "body": { "type": "doc", "content": [{ "type": "paragraph" }] } } },
+                    { "id": "e2", "type": "text", "fields": { "body": "ren tekst" } },
+                    { "id": "e3", "type": "headline", "fields": { "kind": "custom", "style": { "color": "#123456" } },
+                      "settings": { "classes": ["ok", "ikke ok"], "hideOn": ["tv"] } },
+                    { "id": "e4", "type": "text", "fields": { "body": doc("Hej") }, "settings": { "elementId": "top-1", "classes": ["a-b"] } }
+                ]],
+                "fallback": { "layout": "1", "columns": [[ { "id": "e5", "type": "ad", "fields": {} } ]] }
+            }, {
+                "id": "s2", "layout": "1", "columns": [[]], "fallback": { "layout": "nope", "columns": [] }
+            }]
+        });
+        let issues = document(&defs, "page", None, &draft, &refs, &HashMap::new());
+        let all = issues.iter().map(|i| format!("{:?} {} [{}] – {}", i.level, i.location, i.field.as_deref().unwrap_or(""), i.message)).collect::<Vec<_>>().join("\n");
+        let has = |s: &str| assert!(all.contains(s), "mangler «{s}» i:\n{all}");
+        let hasnt = |s: &str| assert!(!all.contains(s), "burde ikke have «{s}» i:\n{all}");
+        has("[keywords] – Meta-nøgleord «a» står der flere gange");
+        has("Side [] – «accessMatch» skal være");
+        has("kolonne 1 › Tekst [body] – Tekst skal udfyldes");
+        has("[body] – Tekst skal være formateret tekst");
+        has("[style.color] – Farve «#123456» er ikke en af farverne i paletten");
+        has("[settings.classes] – CSS-klasser «ikke ok» har ikke det rigtige format");
+        has("[settings.hideOn] – Skjul på «tv» er ikke en af valgmulighederne");
+        has("Sektion 1 › uden adgang › kolonne 1 › Annonce [adType] – Annoncetype skal udfyldes");
+        has("Warning Sektion 2 [] – sektionen har indhold uden adgang, men ingen access-regler");
+        has("Sektion 2 › uden adgang [] – layoutet «nope» findes ikke");
+        hasnt("top-1");
+        hasnt("Sektion 1 [] – «accessMatch»");
+    }
+
+    #[test]
+    fn globals() {
+        let defs = defs();
+        let refs = HashMap::new();
+        let menu = json!({ "fields": { "items": [
+            { "kind": "link", "label": "Forside", "link": "/" },
+            { "kind": "folder", "label": "Mere", "children": [{ "label": "", "link": "/x" }] },
+            { "kind": "divider" }
+        ] } });
+        let i = document(&defs, "global", Some("menu"), &menu, &refs, &HashMap::new());
+        let all = i.iter().map(|i| format!("{} [{}] – {}", i.location, i.field.as_deref().unwrap_or(""), i.message)).collect::<Vec<_>>().join("\n");
+        assert_eq!(i.len(), 1, "{all}");
+        assert!(all.contains("[items.1.children.0.label] – Tekst skal udfyldes"), "{all}");
+        let i = document(&defs, "global", Some("findesIkke"), &json!({}), &refs, &HashMap::new());
+        assert!(i[0].message.contains("definitions/globals"), "{i:?}");
     }
 
     #[test]

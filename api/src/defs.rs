@@ -20,6 +20,9 @@ use ts_rs::TS;
 #[ts(export)]
 pub enum FieldType {
     Text,
+    /// Almindelig tekst over flere linjer.
+    Textarea,
+    /// Formateret tekst som ProseMirror-JSON (se richtext.rs).
     Richtext,
     Number,
     Boolean,
@@ -34,6 +37,8 @@ pub enum FieldType {
     Datasource,
     Group,
     List,
+    /// Fri liste af tekster, fx tags eller CSS-klasser.
+    Tags,
 }
 
 impl FieldType {
@@ -41,6 +46,7 @@ impl FieldType {
         use FieldType::*;
         match self {
             Text => "text",
+            Textarea => "textarea",
             Richtext => "richtext",
             Number => "number",
             Boolean => "boolean",
@@ -55,6 +61,7 @@ impl FieldType {
             Datasource => "datasource",
             Group => "group",
             List => "list",
+            Tags => "tags",
         }
     }
 }
@@ -120,6 +127,9 @@ pub struct FieldDef {
     pub options: Option<Vec<OptionDef>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options_from: Option<String>,
+    /// color: navnet på en palet i palettes.json. Ved indlæsning lægges farverne i `options`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub palette: Option<String>,
     // number
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min: Option<f64>,
@@ -219,6 +229,10 @@ pub struct RefTypeDef {
     pub source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Kun globals: der kan være flere dokumenter af typen (fx menuer). Ellers er der ét.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub multiple: bool,
     pub fields: Vec<FieldDef>,
 }
 
@@ -235,11 +249,16 @@ pub struct DefProblem {
 pub struct Defs {
     pub page: FieldsDef,
     pub section: FieldsDef,
+    /// Felter, alle elementer har (gemmes i elementets `settings`).
+    pub element: FieldsDef,
     pub layouts: Vec<LayoutDef>,
     pub elements: Vec<ElementDef>,
     pub datasources: Vec<RefTypeDef>,
     pub schedules: Vec<RefTypeDef>,
     pub access: Vec<RefTypeDef>,
+    pub globals: Vec<RefTypeDef>,
+    /// Fra palettes.json: navn → farver.
+    pub palettes: BTreeMap<String, Vec<OptionDef>>,
     /// Fra services.json. Kun skabelonerne: værdier fra miljøvariabler (fx tokens) er ikke med.
     pub services: BTreeMap<String, ServiceDef>,
     pub problems: Vec<DefProblem>,
@@ -250,6 +269,7 @@ pub fn list_key(kind: &str) -> &'static str {
     match kind {
         "datasource" => "datasources",
         "schedule" => "schedules",
+        "global" => "globals",
         _ => "access",
     }
 }
@@ -260,6 +280,7 @@ impl Defs {
             "datasource" => &self.datasources,
             "schedule" => &self.schedules,
             "access" => &self.access,
+            "global" => &self.globals,
             _ => &[],
         }
     }
@@ -327,13 +348,33 @@ impl Loader {
 pub fn load(dir: &Path) -> Defs {
     let mut l = Loader { dir: dir.to_path_buf(), problems: vec![] };
     let empty = || FieldsDef { def_type: None, fields: vec![] };
-    let page = l.file(&dir.join("page.json")).unwrap_or_else(empty);
-    let section = l.file(&dir.join("section.json")).unwrap_or_else(empty);
+    let optional = |l: &mut Loader, name: &str| -> Option<FieldsDef> {
+        dir.join(name).exists().then(|| l.file(&dir.join(name))).flatten()
+    };
+    let mut page = l.file(&dir.join("page.json")).unwrap_or_else(empty);
+    let mut section = l.file(&dir.join("section.json")).unwrap_or_else(empty);
+    let mut element = optional(&mut l, "element.json").unwrap_or_else(empty);
     let layouts: Vec<LayoutDef> = l.file(&dir.join("layouts.json")).unwrap_or_default();
-    let elements = l.dir::<ElementDef>("elements");
+    let mut elements = l.dir::<ElementDef>("elements");
     let datasources = l.dir::<RefTypeDef>("datasources");
     let schedules = l.dir::<RefTypeDef>("schedules");
     let access = l.dir::<RefTypeDef>("access");
+    let globals = l.dir::<RefTypeDef>("globals");
+    let palettes: BTreeMap<String, Vec<OptionDef>> = if dir.join("palettes.json").exists() {
+        l.file(&dir.join("palettes.json")).unwrap_or_default()
+    } else {
+        BTreeMap::new()
+    };
+    for (name, colors) in &palettes {
+        if colors.is_empty() {
+            l.problem("palettes.json", format!("paletten «{name}» er tom"));
+        }
+        for c in colors {
+            if !crate::validate::is_color(c.value()) {
+                l.problem("palettes.json", format!("«{}» i paletten «{name}» er ikke en farve som #rrggbb", c.value()));
+            }
+        }
+    }
 
     let services: BTreeMap<String, ServiceDef> = if dir.join("services.json").exists() {
         l.file(&dir.join("services.json")).unwrap_or_default()
@@ -348,37 +389,46 @@ pub fn load(dir: &Path) -> Defs {
     let known = Known {
         ds_types: datasources.iter().map(|(_, d)| d.def_type.clone()).collect(),
         lists: services.iter().flat_map(|(n, s)| s.lists.keys().map(move |k| format!("{n}:{k}"))).collect(),
+        palettes: palettes.clone(),
     };
 
-    check_fields(&mut l, "page.json", &page.fields, &known);
-    check_fields(&mut l, "section.json", &section.fields, &known);
+    check_fields(&mut l, "page.json", &mut page.fields, &known);
+    check_fields(&mut l, "section.json", &mut section.fields, &known);
+    check_fields(&mut l, "element.json", &mut element.fields, &known);
+    if has_datasource(&element.fields) {
+        l.problem("element.json", "felter af typen datasource kan ikke bruges i element.json");
+    }
     check_layouts(&mut l, &layouts);
 
-    let elements = dedupe(&mut l, elements, |e| &e.def_type);
-    for (f, e) in &elements {
+    elements = dedupe(&mut l, elements, |e| &e.def_type);
+    for (f, e) in elements.iter_mut() {
         check_name(&mut l, f, &e.def_type);
         if e.version == 0 {
-            l.problem(f, "version skal være 1 eller højere");
+            l.problem(f.as_str(), "version skal være 1 eller højere");
         }
-        check_fields(&mut l, f, &e.fields, &known);
+        check_fields(&mut l, f, &mut e.fields, &known);
     }
     let mut lists = vec![];
-    for (kind, list) in [("datasource", datasources), ("schedule", schedules), ("access", access)] {
-        let list = dedupe(&mut l, list, |d| &d.def_type);
-        for (f, d) in &list {
+    for (kind, list) in [("datasource", datasources), ("schedule", schedules), ("access", access), ("global", globals)] {
+        let mut list = dedupe(&mut l, list, |d| &d.def_type);
+        for (f, d) in list.iter_mut() {
             check_name(&mut l, f, &d.def_type);
             match (kind, &d.source) {
-                ("datasource", None) => l.problem(f, "en datasource-type skal have «source», fx \"editorial\""),
+                ("datasource", None) => l.problem(f.as_str(), "en datasource-type skal have «source», fx \"editorial\""),
                 ("datasource", Some(_)) | (_, None) => {}
-                (_, Some(_)) => l.problem(f, "«source» bruges kun på datasource-typer"),
+                (_, Some(_)) => l.problem(f.as_str(), "«source» bruges kun på datasource-typer"),
+            }
+            if d.multiple && kind != "global" {
+                l.problem(f.as_str(), "«multiple» bruges kun på globals");
             }
             if has_datasource(&d.fields) {
-                l.problem(f, "felter af typen datasource kan kun bruges på elementer, side og sektion");
+                l.problem(f.as_str(), "felter af typen datasource kan kun bruges på elementer, side og sektion");
             }
-            check_fields(&mut l, f, &d.fields, &known);
+            check_fields(&mut l, f, &mut d.fields, &known);
         }
         lists.push(list.into_iter().map(|(_, d)| d).collect::<Vec<_>>());
     }
+    let globals = lists.pop().unwrap();
     let access = lists.pop().unwrap();
     let schedules = lists.pop().unwrap();
     let datasources = lists.pop().unwrap();
@@ -386,11 +436,14 @@ pub fn load(dir: &Path) -> Defs {
     Defs {
         page,
         section,
+        element,
         layouts,
         elements: elements.into_iter().map(|(_, e)| e).collect(),
         datasources,
         schedules,
         access,
+        globals,
+        palettes,
         services,
         problems: l.problems,
     }
@@ -447,10 +500,28 @@ struct Known {
     ds_types: HashSet<String>,
     /// "service:liste" fra services.json
     lists: HashSet<String>,
+    palettes: BTreeMap<String, Vec<OptionDef>>,
 }
 
-fn check_fields(l: &mut Loader, file: &str, fields: &[FieldDef], known: &Known) {
+fn check_fields(l: &mut Loader, file: &str, fields: &mut [FieldDef], known: &Known) {
+    resolve_palettes(l, file, fields, known);
     check_fields_in(l, file, "", fields, known)
+}
+
+/// Lægger farverne fra en palet i `options`, så editor og validering kun skal kende `options`.
+fn resolve_palettes(l: &mut Loader, file: &str, fields: &mut [FieldDef], known: &Known) {
+    for fd in fields.iter_mut() {
+        if let Some(name) = &fd.palette {
+            match known.palettes.get(name) {
+                Some(colors) if fd.options.is_none() => fd.options = Some(colors.clone()),
+                Some(_) => l.problem(file, format!("feltet «{}»: brug enten «palette» eller «options», ikke begge", fd.key)),
+                None => l.problem(file, format!("feltet «{}»: paletten «{name}» står ikke i palettes.json", fd.key)),
+            }
+        }
+        if let Some(sub) = fd.fields.as_mut() {
+            resolve_palettes(l, file, sub, known);
+        }
+    }
 }
 
 fn check_fields_in(l: &mut Loader, file: &str, parent: &str, fields: &[FieldDef], known: &Known) {
@@ -475,23 +546,28 @@ fn check_fields_in(l: &mut Loader, file: &str, parent: &str, fields: &[FieldDef]
         let only = |prop: &str, set: bool, ok: &[FieldType]| -> Option<String> {
             (set && !ok.contains(&t)).then(|| {
                 let names: Vec<&str> = ok.iter().map(|x| x.name()).collect();
-                format!("«{prop}» bruges kun på {}, ikke {tn}", names.join(" og "))
+                let list = match names.split_last() {
+                    Some((last, rest)) if !rest.is_empty() => format!("{} og {last}", rest.join(", ")),
+                    _ => names.join(""),
+                };
+                format!("«{prop}» bruges kun på {list}, ikke {tn}")
             })
         };
         let choice = [Select, Multiselect];
-        let texts = [Text, Richtext];
+        let texts = [Text, Textarea, Richtext];
         for m in [
-            only("options", fd.options.is_some(), &choice),
+            only("options", fd.options.is_some() && fd.palette.is_none(), &[Select, Multiselect, Color]),
             only("optionsFrom", fd.options_from.is_some(), &choice),
+            only("palette", fd.palette.is_some(), &[Color]),
             only("min", fd.min.is_some(), &[Number]),
             only("max", fd.max.is_some(), &[Number]),
             only("step", fd.step.is_some(), &[Number]),
             only("minLength", fd.min_length.is_some(), &texts),
             only("maxLength", fd.max_length.is_some(), &texts),
-            only("pattern", fd.pattern.is_some(), &texts),
-            only("placeholder", fd.placeholder.is_some(), &[Text, Richtext, Number, Link, Image]),
-            only("minItems", fd.min_items.is_some(), &[Multiselect, List]),
-            only("maxItems", fd.max_items.is_some(), &[Multiselect, List]),
+            only("pattern", fd.pattern.is_some(), &[Text, Textarea, Tags]),
+            only("placeholder", fd.placeholder.is_some(), &[Text, Textarea, Richtext, Number, Link, Image, Tags]),
+            only("minItems", fd.min_items.is_some(), &[Multiselect, List, Tags]),
+            only("maxItems", fd.max_items.is_some(), &[Multiselect, List, Tags]),
             only("accepts", fd.accepts.is_some(), &[Datasource]),
             only("fields", fd.fields.is_some(), &[Group, List]),
             only("itemLabel", fd.item_label.is_some(), &[List]),
@@ -502,6 +578,15 @@ fn check_fields_in(l: &mut Loader, file: &str, parent: &str, fields: &[FieldDef]
             bad(m);
         }
 
+        if t == Color {
+            if let Some(o) = &fd.options {
+                for x in o {
+                    if !crate::validate::is_color(x.value()) {
+                        bad(format!("«{}» i «options» er ikke en farve som #rrggbb", x.value()));
+                    }
+                }
+            }
+        }
         if choice.contains(&t) {
             match &fd.options {
                 None => bad(format!("{tn} skal have «options»")),
@@ -663,7 +748,7 @@ mod tests {
         assert!(all.contains("feltet «l.x»: «pattern» er ikke et gyldigt"), "{all}");
         assert!(all.contains("«showWhen» peger på «mangler»"), "{all}");
         assert!(all.contains("«min» er større end «max»"), "{all}");
-        assert!(all.contains("«maxLength» bruges kun på text og richtext, ikke number"), "{all}");
+        assert!(all.contains("«maxLength» bruges kun på text, textarea og richtext, ikke number"), "{all}");
         assert!(all.contains("valgmuligheden «a» findes flere gange"), "{all}");
         assert_eq!(defs.elements.len(), 2);
         let _ = std::fs::remove_dir_all(&dir);

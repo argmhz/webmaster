@@ -1,0 +1,24 @@
+{
+  "newsletters": [
+    {
+      "id": "morgen",
+      "name": "Morgenbrevet"
+    },
+    {
+      "id": "eftermiddag",
+      "name": "Eftermiddagsbrevet"
+    },
+    {
+      "id": "weekend",
+      "name": "Weekend"
+    },
+    {
+      "id": "pro-finans",
+      "name": "Pro Finans"
+    },
+    {
+      "id": "ejendomme",
+      "name": "Ejendomme"
+    }
+  ]
+}

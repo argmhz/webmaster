@@ -1,0 +1,143 @@
+{
+  "type": "articleFlowGrid",
+  "version": 1,
+  "label": "Artikelflow (gitter)",
+  "description": "Teasere i et gitter. Rækkerne bruges i rækkefølge; en «Gentaget» række gentages, til der ikke er flere artikler. Husk element-id under Indstillinger.",
+  "fields": [
+    {
+      "key": "articles",
+      "type": "datasource",
+      "label": "Artikler",
+      "required": true,
+      "accepts": [
+        "feed",
+        "tagFeed",
+        "tagMix",
+        "profileFeed",
+        "themeFeed",
+        "opinionDeck",
+        "articleQuery",
+        "articlePicks",
+        "mostRead"
+      ]
+    },
+    {
+      "key": "amount",
+      "type": "number",
+      "label": "Antal",
+      "required": true,
+      "default": 4,
+      "min": 1,
+      "max": 60,
+      "step": 1
+    },
+    {
+      "key": "offset",
+      "type": "number",
+      "label": "Spring over",
+      "default": 0,
+      "min": 0,
+      "max": 100,
+      "step": 1
+    },
+    {
+      "key": "layout",
+      "type": "list",
+      "label": "Layout",
+      "itemLabel": "kind",
+      "maxItems": 1,
+      "help": "Tom: sitets standardlayout.",
+      "fields": [
+        {
+          "key": "kind",
+          "type": "select",
+          "label": "Type",
+          "required": true,
+          "default": "default",
+          "options": [
+            {
+              "value": "default",
+              "label": "Standard"
+            },
+            {
+              "value": "row",
+              "label": "Række"
+            },
+            {
+              "value": "loop",
+              "label": "Gentaget"
+            }
+          ]
+        },
+        {
+          "key": "cols",
+          "type": "number",
+          "label": "Kolonner",
+          "required": true,
+          "default": 3,
+          "min": 1,
+          "max": 6,
+          "step": 1
+        },
+        {
+          "key": "imageOnTop",
+          "type": "boolean",
+          "label": "Billede øverst",
+          "default": false
+        },
+        {
+          "key": "topImageLeft",
+          "type": "boolean",
+          "label": "Første billede til venstre",
+          "default": false,
+          "showWhen": {
+            "field": "kind",
+            "in": [
+              "default",
+              "loop"
+            ]
+          }
+        },
+        {
+          "key": "showRelated",
+          "type": "boolean",
+          "label": "Vis relaterede",
+          "default": false,
+          "showWhen": {
+            "field": "kind",
+            "equals": "default"
+          }
+        },
+        {
+          "key": "showText",
+          "type": "boolean",
+          "label": "Vis manchet",
+          "default": false,
+          "showWhen": {
+            "field": "kind",
+            "equals": "default"
+          }
+        },
+        {
+          "key": "showAd",
+          "type": "boolean",
+          "label": "Annonce i rækken",
+          "default": false
+        },
+        {
+          "key": "adPosition",
+          "type": "number",
+          "label": "Annoncens plads",
+          "required": true,
+          "min": 1,
+          "max": 6,
+          "step": 1,
+          "showWhen": {
+            "field": "showAd",
+            "equals": true
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -11,12 +11,15 @@ export function Definitions() {
       { title: "Side og sektion", items: [
         { file: "page.json", data: d.page },
         { file: "section.json", data: d.section },
+        { file: "element.json", data: d.element },
         { file: "layouts.json", data: d.layouts },
+        ...(Object.keys(d.palettes).length ? [{ file: "palettes.json", data: d.palettes }] : []),
       ] },
       { title: "Elementtyper", items: d.elements.map((e) => ({ file: `elements/${e.type}.json`, data: e })) },
       { title: "Datasource-typer", items: d.datasources.map((e) => ({ file: `datasources/${e.type}.json`, data: e })) },
       { title: "Schedule-typer", items: d.schedules.map((e) => ({ file: `schedules/${e.type}.json`, data: e })) },
       { title: "Access-typer", items: d.access.map((e) => ({ file: `access/${e.type}.json`, data: e })) },
+      { title: "Globals", items: d.globals.map((e) => ({ file: `globals/${e.type}.json`, data: e })) },
       { title: "Services", items: Object.keys(d.services).length ? [{ file: "services.json", data: d.services }] : [] },
     ];
   };
@@ -102,8 +105,9 @@ function ServiceStatus() {
       };
       walk("page", d.page.fields);
       walk("section", d.section.fields);
+      walk("element", d.element.fields);
       for (const e of d.elements) walk(e.type, e.fields);
-      for (const x of [...d.datasources, ...d.schedules, ...d.access]) walk(x.type, x.fields);
+      for (const x of [...d.datasources, ...d.schedules, ...d.access, ...d.globals]) walk(x.type, x.fields);
       return out;
     };
     return Object.entries(d.services).flatMap(([name, svc]) =>

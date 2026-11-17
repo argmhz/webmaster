@@ -148,6 +148,7 @@ pub async fn page(State(s): State<AppState>, Query(q): Query<PageQ>) -> R<Json<V
         "version": version,
         "publishedAt": published_at,
         "visibility": { "schedules": "any", "access": "all" },
+        "accessMatch": data.get("accessMatch").cloned().unwrap_or_else(|| json!("all")),
         "fields": page_fields,
         "schedules": data.get("schedules").cloned().unwrap_or_else(|| json!([])),
         "access": data.get("access").cloned().unwrap_or_else(|| json!([])),
@@ -210,7 +211,8 @@ fn enrich_inline(v: &mut Value, all_defs: &Defs) {
 }
 
 /// Omdanner `columns: [[el, el], [el]]` til `columns: [{ width, elements }]`
-/// og sætter elementtypens version på hvert element.
+/// og sætter elementtypens version på hvert element. Det samme sker for
+/// sektionens indhold uden adgang (`fallback`).
 fn sections_out(data: &Value, all_defs: &Defs) -> Vec<Value> {
     data["sections"]
         .as_array()
@@ -219,37 +221,52 @@ fn sections_out(data: &Value, all_defs: &Defs) -> Vec<Value> {
         .into_iter()
         .filter(|s| s.is_object())
         .map(|mut s| {
-            let layout = s["layout"].as_str().unwrap_or("1").to_string();
-            let widths: Vec<u32> = all_defs
-                .layout(&layout)
-                .map(|l| l.columns.iter().map(|c| c.width).collect())
-                .unwrap_or_else(|| vec![12]);
-            let cols = s["columns"].as_array().cloned().unwrap_or_default();
-            let out: Vec<Value> = widths
-                .iter()
-                .enumerate()
-                .map(|(i, w)| {
-                    let els: Vec<Value> = cols
-                        .get(i)
-                        .and_then(|c| c.as_array())
-                        .cloned()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|mut e| {
-                            let v = e["type"].as_str().and_then(|t| all_defs.element(t)).map(|d| json!(d.version));
-                            if let (Some(v), Some(obj)) = (v, e.as_object_mut()) {
-                                obj.insert("version".into(), v);
-                            }
-                            e
-                        })
-                        .collect();
-                    json!({ "width": w, "elements": els })
-                })
-                .collect();
-            s["columns"] = Value::Array(out);
+            s["columns"] = columns_out(&s, all_defs);
+            if s.get("accessMatch").is_none() {
+                s["accessMatch"] = json!("all");
+            }
+            if s["fallback"].is_object() {
+                let fb = s["fallback"].clone();
+                s["fallback"]["columns"] = columns_out(&fb, all_defs);
+            }
             s
         })
         .collect()
+}
+
+fn columns_out(s: &Value, all_defs: &Defs) -> Value {
+    let layout = s["layout"].as_str().unwrap_or("1").to_string();
+    let widths: Vec<u32> = all_defs
+        .layout(&layout)
+        .map(|l| l.columns.iter().map(|c| c.width).collect())
+        .unwrap_or_else(|| vec![12]);
+    let cols = s["columns"].as_array().cloned().unwrap_or_default();
+    let out: Vec<Value> = widths
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            let els: Vec<Value> = cols
+                .get(i)
+                .and_then(|c| c.as_array())
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|mut e| {
+                    let v = e["type"].as_str().and_then(|t| all_defs.element(t)).map(|d| json!(d.version));
+                    if let Some(obj) = e.as_object_mut() {
+                        if let Some(v) = v {
+                            obj.insert("version".into(), v);
+                        }
+                        obj.entry("settings").or_insert_with(|| json!({}));
+                        obj.entry("accessMatch").or_insert_with(|| json!("all"));
+                    }
+                    e
+                })
+                .collect();
+            json!({ "width": w, "elements": els })
+        })
+        .collect();
+    Value::Array(out)
 }
 
 #[derive(Deserialize)]
@@ -274,4 +291,47 @@ pub async fn tree(State(s): State<AppState>, Query(q): Query<TreeQ>) -> R<Json<V
             .map(|r| json!({ "id": r.0, "parentId": r.1, "path": paths[&r.0], "title": r.3 }))
             .collect(),
     )))
+}
+
+#[derive(Deserialize)]
+pub struct GlobalsQ {
+    #[serde(default)]
+    preview: bool,
+}
+
+/// Alle globals, nøglet på typen. En type med `multiple` giver en liste, ellers ét objekt
+/// (eller `null`, hvis den ikke er oprettet og publiceret).
+pub async fn globals(State(s): State<AppState>, Query(q): Query<GlobalsQ>) -> R<Json<Value>> {
+    let all_defs = defs::load(&s.defs_dir);
+    let sql = if q.preview {
+        "select d.id, d.type, d.name, d.draft, null::bigint, null::timestamptz from documents d where d.kind = 'global' order by lower(d.name)"
+    } else {
+        "select d.id, v.type, v.name, v.data, v.id, v.published_at from documents d
+           join publications p on p.document_id = d.id
+           join versions v on v.id = p.version_id
+          where d.kind = 'global' order by lower(v.name)"
+    };
+    let rows: Vec<(String, Option<String>, String, Value, Option<i64>, Option<DateTime<Utc>>)> =
+        sqlx::query_as(sql).fetch_all(&s.db).await?;
+    let nodes: Vec<NodeRow> = sqlx::query_as("select id, parent_id, slug from nodes").fetch_all(&s.db).await?;
+    let paths = compute_paths(&nodes);
+
+    let mut out = Map::new();
+    for g in &all_defs.globals {
+        out.insert(g.def_type.clone(), if g.multiple { json!([]) } else { Value::Null });
+    }
+    for (id, ty, name, data, version, at) in rows {
+        let Some(ty) = ty else { continue };
+        let Some(def) = all_defs.find_type("global", &ty) else { continue };
+        let mut fields = data.get("fields").cloned().unwrap_or_else(|| json!({}));
+        resolve_links(&mut fields, &paths);
+        let item = json!({ "id": id, "name": name, "version": version, "publishedAt": at, "fields": fields });
+        match out.get_mut(&ty) {
+            Some(Value::Array(a)) if def.multiple => a.push(item),
+            _ => {
+                out.insert(ty, item);
+            }
+        }
+    }
+    Ok(Json(json!({ "preview": q.preview, "globals": out })))
 }

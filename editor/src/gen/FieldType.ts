@@ -3,4 +3,4 @@
 /**
  * Felttyperne. Editoren har én renderer pr. type.
  */
-export type FieldType = "text" | "richtext" | "number" | "boolean" | "select" | "multiselect" | "date" | "datetime" | "time" | "color" | "link" | "image" | "datasource" | "group" | "list";
+export type FieldType = "text" | "textarea" | "richtext" | "number" | "boolean" | "select" | "multiselect" | "date" | "datetime" | "time" | "color" | "link" | "image" | "datasource" | "group" | "list" | "tags";

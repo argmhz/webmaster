@@ -1,6 +1,6 @@
 {
-  "type": "text", "version": 1, "label": "Tekst",
+  "type": "text", "version": 2, "label": "Tekst", "description": "Formateret tekst med overskrifter, lister, citater og links.",
   "fields": [
-    { "key": "body", "type": "richtext", "label": "Tekst", "required": true }
+    {"key": "body", "type": "richtext", "label": "Tekst", "required": true}
   ]
 }

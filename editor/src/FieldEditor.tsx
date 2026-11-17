@@ -1,6 +1,7 @@
 import { createSignal, For, Index, Match, Show, Switch } from "solid-js";
 import type { FieldDef, Issue, OptionDef, OptionList } from "./api";
 import { DatasourceField } from "./DatasourceField";
+import { RichTextInput } from "./RichText";
 import { defaultsFor, optionList, pathOf, tree } from "./store";
 import { Typeahead } from "./Typeahead";
 
@@ -104,10 +105,18 @@ export function FieldEditor(p: Common & { def: FieldDef; value: any; onChange: (
             {p.def.label ?? p.def.key}
           </label>
         </Match>
-        <Match when={p.def.type === "richtext"}>
+        <Match when={p.def.type === "textarea"}>
           <Label />
           <textarea id={id()} value={p.value ?? ""} placeholder={p.def.placeholder} onInput={(e) => p.onChange(e.currentTarget.value)} />
           <Counter />
+        </Match>
+        <Match when={p.def.type === "richtext"}>
+          <Label />
+          <RichTextInput id={id()} value={p.value} placeholder={p.def.placeholder} maxLength={p.def.maxLength} onChange={p.onChange} />
+        </Match>
+        <Match when={p.def.type === "tags"}>
+          <Label />
+          <TagsInput id={id()} value={p.value} placeholder={p.def.placeholder} pattern={p.def.pattern} onChange={p.onChange} />
         </Match>
         <Match when={p.def.type === "number"}>
           <Label />
@@ -144,7 +153,9 @@ export function FieldEditor(p: Common & { def: FieldDef; value: any; onChange: (
         </Match>
         <Match when={p.def.type === "color"}>
           <Label />
-          <ColorInput id={id()} value={p.value} onChange={p.onChange} />
+          <Show when={p.def.options} fallback={<ColorInput id={id()} value={p.value} onChange={p.onChange} />}>
+            <SwatchInput id={id()} options={p.def.options!} value={p.value} onChange={p.onChange} />
+          </Show>
         </Match>
         <Match when={p.def.type === "link"}>
           <Label />
@@ -301,6 +312,77 @@ function ColorInput(p: { id: string; value: string | undefined; onChange: (v: st
     <div class="color-field">
       <input type="color" aria-label="Vælg farve" value={full()} onInput={(e) => p.onChange(e.currentTarget.value)} />
       <input id={p.id} type="text" class="mono" value={p.value ?? ""} placeholder="#rrggbb" onInput={(e) => p.onChange(e.currentTarget.value || undefined)} />
+    </div>
+  );
+}
+
+/** Farve fra en palet: kun farverne i `options` kan vælges. */
+function SwatchInput(p: { id: string; options: OptionDef[]; value: string | undefined; onChange: (v: string | undefined) => void }) {
+  const same = (a?: string, b?: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+  const known = () => !p.value || p.options.some((o) => same(optValue(o), p.value));
+  return (
+    <div class="swatches" role="radiogroup" id={p.id}>
+      <button type="button" class="swatch none" role="radio" aria-checked={!p.value} classList={{ active: !p.value }} title="Ingen" onClick={() => p.onChange(undefined)}>∅</button>
+      <For each={p.options}>
+        {(o) => (
+          <button
+            type="button"
+            class="swatch"
+            role="radio"
+            aria-checked={same(optValue(o), p.value)}
+            classList={{ active: same(optValue(o), p.value) }}
+            style={{ background: optValue(o) }}
+            title={`${optLabel(o)} ${optValue(o)}`}
+            onClick={() => p.onChange(optValue(o))}
+          />
+        )}
+      </For>
+      <Show when={!known()}>
+        <span class="muted mono">{p.value} (ikke i paletten)</span>
+      </Show>
+    </div>
+  );
+}
+
+/** Fri liste af tekster. Enter eller komma tilføjer, ✕ fjerner. */
+function TagsInput(p: { id: string; value: string[] | undefined; placeholder?: string; pattern?: string; onChange: (v: string[] | undefined) => void }) {
+  const [text, setText] = createSignal("");
+  const cur = () => (Array.isArray(p.value) ? p.value : []);
+  const re = () => (p.pattern ? new RegExp(`^(?:${p.pattern})$`) : undefined);
+  const set = (next: string[]) => p.onChange(next.length ? next : undefined);
+  const add = (raw: string) => {
+    const items = raw.split(",").map((x) => x.trim()).filter(Boolean);
+    const next = [...cur()];
+    for (const x of items) if (!next.includes(x)) next.push(x);
+    set(next);
+    setText("");
+  };
+  return (
+    <div class="tags-field">
+      <For each={cur()}>
+        {(t) => (
+          <span class="tag-chip" classList={{ bad: !!re() && !re()!.test(t) }}>
+            {t}
+            <button type="button" class="ghost icon" title={`Fjern «${t}»`} onClick={() => set(cur().filter((x) => x !== t))}>✕</button>
+          </span>
+        )}
+      </For>
+      <input
+        id={p.id}
+        type="text"
+        value={text()}
+        placeholder={cur().length ? "" : p.placeholder ?? "Skriv og tryk Enter"}
+        onInput={(e) => {
+          const v = e.currentTarget.value;
+          if (v.includes(",")) add(v);
+          else setText(v);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && text().trim()) { e.preventDefault(); add(text()); }
+          if (e.key === "Backspace" && !text() && cur().length) set(cur().slice(0, -1));
+        }}
+        onBlur={() => text().trim() && add(text())}
+      />
     </div>
   );
 }

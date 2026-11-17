@@ -1,0 +1,9 @@
+{
+  "type": "opinionDeck", "source": "editorial", "label": "Debat", "description": "Debat, kommentarer, kronikker og økonomiske kommentarer ud fra tags.",
+  "fields": [
+    {"key": "debate", "type": "tags", "label": "Debat"},
+    {"key": "comment", "type": "tags", "label": "Kommentar"},
+    {"key": "chronicle", "type": "tags", "label": "Kronik"},
+    {"key": "economicCommentary", "type": "tags", "label": "Økonomisk kommentar"}
+  ]
+}

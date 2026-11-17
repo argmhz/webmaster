@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "slug": "redaktionen",
+      "name": "Redaktionen"
+    },
+    {
+      "slug": "anne-jensen",
+      "name": "Anne Jensen (mock)"
+    },
+    {
+      "slug": "peter-holm",
+      "name": "Peter Holm (mock)"
+    },
+    {
+      "slug": "lars-krull",
+      "name": "Lars Krull (mock)"
+    }
+  ]
+}

@@ -30,9 +30,14 @@ export type { RefTypeDef } from "./gen/RefTypeDef";
 export type RefKind = Exclude<Kind, "page">;
 
 // Sidens kladde
-export interface Vis { schedules: string[]; access: string[] }
-export interface El extends Vis { id: string; type: string; fields: Record<string, any> }
-export interface Sec extends Vis { id: string; layout: string; settings: Record<string, any>; columns: El[][] }
+export type AccessMatch = "all" | "any";
+/** Synlighed. Flere schedules gælder med ELLER; access med OG («all») eller ELLER («any»). */
+export interface Vis { schedules: string[]; access: string[]; accessMatch?: AccessMatch }
+/** `settings` er de fælles felter fra element.json. */
+export interface El extends Vis { id: string; type: string; fields: Record<string, any>; settings: Record<string, any> }
+/** Kolonnerne i en sektion, eller sektionens indhold uden adgang (`fallback`). */
+export interface Cols { layout: string; columns: El[][] }
+export interface Sec extends Vis, Cols { id: string; settings: Record<string, any>; fallback?: Cols }
 export interface PageDraft extends Vis { fields: Record<string, any>; sections: Sec[] }
 
 /** Fejl fra API'et. `issues` er med, når en kladde ikke kan publiceres. */
@@ -89,6 +94,8 @@ export const api = {
 
   redirects: () => req<Redirect[]>("GET", "/redirects"),
   saveRedirects: (list: Redirect[]) => req<Redirect[]>("PUT", "/redirects", list),
+
+  siteGlobalsUrl: (preview: boolean) => `/api/site/globals${preview ? "?preview=true" : ""}`,
 
   sitePageUrl: (path: string, preview: boolean) =>
     `/api/site/page?path=${encodeURIComponent(path)}${preview ? "&preview=true" : ""}`,

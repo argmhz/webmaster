@@ -1,11 +1,12 @@
 import { createEffect, createResource, createSignal, For, Match, on, Show, Switch } from "solid-js";
 import { createStore, produce, reconcile, unwrap } from "solid-js/store";
-import { api, type Doc, type El, type Issue, type PageDraft, type Sec, type Vis } from "./api";
+import { api, type AccessMatch, type Cols, type Doc, type El, type Issue, type PageDraft, type Sec, type Vis } from "./api";
 import { clearMarks, endDrag, getDrag, showLine, slot, startDrag } from "./dnd";
 import { Fields, optionLabel } from "./FieldEditor";
 import { errorsOf, IssueSummary, issuesAt, issuesFromError } from "./Issues";
 import { BlockIcon, ClockIcon, LayoutGlyph, LockIcon, VisBadges } from "./icons";
 import { RefPicker } from "./RefPicker";
+import { plainText } from "./RichText";
 import {
   createAutosave, defaultsFor, defs, docById, elDef, errMsg, layoutOf, navigate, pathOf, refreshTree, route, status,
   toast, touchRecent, tree, typeLabel, uid,
@@ -51,7 +52,15 @@ function PageLoader(p: { id: string }) {
 }
 
 function normalize(d: any): PageDraft {
-  const vis = (x: any) => ({ schedules: x?.schedules ?? [], access: x?.access ?? [] });
+  const vis = (x: any): Vis => ({
+    schedules: x?.schedules ?? [],
+    access: x?.access ?? [],
+    ...(x?.accessMatch === "any" ? { accessMatch: "any" as const } : {}),
+  });
+  const cols = (x: any): El[][] =>
+    (x?.columns ?? [[]]).map((c: any[]) =>
+      (c ?? []).map((e: any) => ({ id: e.id ?? uid("el"), type: e.type, fields: e.fields ?? {}, settings: e.settings ?? {}, ...vis(e) })),
+    );
   return {
     fields: d?.fields ?? {},
     ...vis(d),
@@ -60,21 +69,28 @@ function normalize(d: any): PageDraft {
       layout: s.layout ?? "1",
       settings: s.settings ?? {},
       ...vis(s),
-      columns: (s.columns ?? [[]]).map((c: any[]) =>
-        (c ?? []).map((e: any) => ({ id: e.id ?? uid("el"), type: e.type, fields: e.fields ?? {}, ...vis(e) })),
-      ),
+      columns: cols(s),
+      ...(s.fallback ? { fallback: { layout: s.fallback.layout ?? "1", columns: cols(s.fallback) } } : {}),
     })),
   };
 }
 
+/** Kolonnerne i sektionen, eller i dens indhold uden adgang. */
+const colsOf = (s: Sec, fb: boolean): Cols => (fb && s.fallback ? s.fallback : s);
+
 function findEl(p: PageDraft, id: string) {
   for (let si = 0; si < p.sections.length; si++)
-    for (let ci = 0; ci < p.sections[si].columns.length; ci++) {
-      const i = p.sections[si].columns[ci].findIndex((e) => e.id === id);
-      if (i > -1) return { si, ci, i };
+    for (const fb of [false, true]) {
+      if (fb && !p.sections[si].fallback) continue;
+      const columns = colsOf(p.sections[si], fb).columns;
+      for (let ci = 0; ci < columns.length; ci++) {
+        const i = columns[ci].findIndex((e) => e.id === id);
+        if (i > -1) return { si, fb, ci, i };
+      }
     }
   return null;
 }
+const elAt = (p: PageDraft, f: { si: number; fb: boolean; ci: number; i: number }) => colsOf(p.sections[f.si], f.fb).columns[f.ci];
 
 const newSection = (layout: string, columns?: El[][]): Sec => ({
   id: uid("sec"),
@@ -88,6 +104,7 @@ const newElement = (type: string): El => ({
   id: uid("el"),
   type,
   fields: defaultsFor(elDef(type)?.fields ?? []),
+  settings: defaultsFor(defs()!.element.fields),
   schedules: [],
   access: [],
 });
@@ -108,7 +125,9 @@ function summary(e: El) {
     else if (f.type === "select") parts.push(optionLabel(f, v));
     else if (f.type === "link") parts.push(typeof v === "object" ? "→ " + pathOf(v.page) : String(v));
     else if (f.type === "list" && Array.isArray(v)) parts.push(`${v.length} × ${(f.label ?? f.key).toLowerCase()}`);
-    else if (["text", "richtext"].includes(f.type)) parts.push(String(v));
+    else if (["text", "textarea"].includes(f.type)) parts.push(String(v));
+    else if (f.type === "richtext") parts.push(plainText(v).slice(0, 80));
+    else if (f.type === "tags" && Array.isArray(v)) parts.push(v.map((t) => "#" + t).join(" "));
   }
   return parts.join(" · ") || "Ikke udfyldt";
 }
@@ -182,10 +201,11 @@ function PageWorkspace(p: { doc: Doc }) {
   };
 
   /* ---------- handlinger ---------- */
-  const setLayout = (secId: string, layout: string) =>
+  const setLayout = (secId: string, layout: string, fb = false) =>
     mutate((p) => {
-      const s = p.sections.find((x) => x.id === secId);
-      if (!s) return;
+      const sec = p.sections.find((x) => x.id === secId);
+      if (!sec || (fb && !sec.fallback)) return;
+      const s = colsOf(sec, fb);
       const n = layoutOf(layout).columns.length;
       if (s.columns.length > n) {
         const extra = s.columns.splice(n).flat();
@@ -203,14 +223,14 @@ function PageWorkspace(p: { doc: Doc }) {
   const removeEl = (elId: string) => {
     mutate((p) => {
       const f = findEl(p, elId);
-      if (f) p.sections[f.si].columns[f.ci].splice(f.i, 1);
+      if (f) elAt(p, f).splice(f.i, 1);
     });
     if (isSel("el", elId)) setSel({ kind: "page" });
   };
   const updEl = (elId: string, fn: (e: El) => void) =>
     mutate((p) => {
       const f = findEl(p, elId);
-      if (f) fn(p.sections[f.si].columns[f.ci][f.i]);
+      if (f) fn(elAt(p, f)[f.i]);
     });
   const updSec = (secId: string, fn: (s: Sec) => void) =>
     mutate((p) => {
@@ -237,7 +257,7 @@ function PageWorkspace(p: { doc: Doc }) {
         if (s.kind === "el") {
           const f = findEl(p, s.id);
           if (f) {
-            p.sections[f.si].columns[f.ci].splice(f.i + 1, 0, el);
+            elAt(p, f).splice(f.i + 1, 0, el);
             return;
           }
         }
@@ -250,7 +270,7 @@ function PageWorkspace(p: { doc: Doc }) {
   };
 
   /* ---------- drag & drop på canvas ---------- */
-  let target: { kind: "col"; sec: string; col: number; idx: number } | { kind: "sec"; idx: number } | null = null;
+  let target: { kind: "col"; sec: string; fb: boolean; col: number; idx: number } | { kind: "sec"; idx: number } | null = null;
 
   const onDragOver = (e: DragEvent) => {
     const d = getDrag();
@@ -268,7 +288,7 @@ function PageWorkspace(p: { doc: Doc }) {
       const { idx, y } = slot(items, e.clientY, box);
       col.classList.add("over");
       showLine(box.left + 6, box.width - 12, y);
-      target = { kind: "col", sec: col.dataset.sec!, col: Number(col.dataset.col), idx };
+      target = { kind: "col", sec: col.dataset.sec!, fb: col.dataset.fb === "1", col: Number(col.dataset.col), idx };
     } else {
       e.preventDefault();
       const blank = canvas.querySelector<HTMLElement>("[data-blank]");
@@ -301,14 +321,14 @@ function PageWorkspace(p: { doc: Doc }) {
         if (d.kind === "el") {
           const f = findEl(p, d.id);
           if (!f) return;
-          item = p.sections[f.si].columns[f.ci].splice(f.i, 1)[0];
+          item = elAt(p, f).splice(f.i, 1)[0];
         } else if (d.kind === "newEl") {
           item = newElement(d.type);
           touchRecent("blocks", "el:" + d.type);
         }
         const s = p.sections.find((x) => x.id === t.sec);
         if (!item || !s) return;
-        s.columns[t.col].splice(t.idx, 0, item);
+        colsOf(s, t.fb).columns[t.col].splice(t.idx, 0, item);
         next = { kind: "el", id: item.id };
       });
     } else {
@@ -380,9 +400,32 @@ function PageWorkspace(p: { doc: Doc }) {
     </div>
   );
 
+  const ColumnsBody = (cp: { s: Sec; fb: boolean }) => {
+    const c = () => colsOf(cp.s, cp.fb);
+    const layout = () => layoutOf(c().layout);
+    return (
+      <div
+        class={`sec-body bg-${cp.s.settings.background ?? "none"} sp-${cp.s.settings.spacing ?? "medium"}`}
+        classList={{ fallback: cp.fb }}
+        style={{ "grid-template-columns": layout().columns.map((col) => `minmax(0, ${col.width}fr)`).join(" ") }}
+      >
+        <For each={layout().columns}>
+          {(col, ci) => (
+            <div class="drop" data-sec={cp.s.id} data-fb={cp.fb ? "1" : "0"} data-col={ci()}>
+              <span class="col-w mono">{col.width}/12</span>
+              <For each={c().columns[ci()] ?? []}>{(e) => <ElementCard e={e} />}</For>
+              <Show when={!(c().columns[ci()]?.length)}>
+                <div class="empty">Træk et element hertil</div>
+              </Show>
+            </div>
+          )}
+        </For>
+      </div>
+    );
+  };
+
   const SectionView = (sp: { s: Sec; i: number }) => {
     let secEl!: HTMLDivElement;
-    const layout = () => layoutOf(sp.s.layout);
     return (
       <div
         class="sec"
@@ -413,45 +456,28 @@ function PageWorkspace(p: { doc: Doc }) {
           <VisBadges v={sp.s} />
           <button class="ghost icon" title="Slet sektion" onClick={() => removeSection(sp.s.id)}>✕</button>
         </div>
-        <div
-          class={`sec-body bg-${sp.s.settings.background ?? "none"} sp-${sp.s.settings.spacing ?? "medium"}`}
-          style={{ "grid-template-columns": layout().columns.map((c) => `minmax(0, ${c.width}fr)`).join(" ") }}
-        >
-          <For each={layout().columns}>
-            {(c, ci) => (
-              <div class="drop" data-sec={sp.s.id} data-col={ci()}>
-                <span class="col-w mono">{c.width}/12</span>
-                <For each={sp.s.columns[ci()] ?? []}>{(e) => <ElementCard e={e} />}</For>
-                <Show when={!(sp.s.columns[ci()]?.length)}>
-                  <div class="empty">Træk et element hertil</div>
-                </Show>
-              </div>
-            )}
-          </For>
-        </div>
+        <ColumnsBody s={sp.s} fb={false} />
+        <Show when={sp.s.fallback}>
+          <div class="sec-h fb-h">
+            <span class="k-access"><LockIcon /></span>
+            <span class="sec-name">Uden adgang</span>
+            <LayoutPicker value={sp.s.fallback!.layout} onPick={(l) => setLayout(sp.s.id, l, true)} />
+            <span class="spacer" />
+            <span class="muted">Vises i stedet, når access ikke er opfyldt</span>
+          </div>
+          <ColumnsBody s={sp.s} fb={true} />
+        </Show>
       </div>
     );
   };
 
-  const Visibility = (vp: { v: Vis; onChange: (k: "schedules" | "access", ids: string[]) => void }) => (
-    <div class="group">
-      <div class="group-h">Synlighed</div>
-      <div class="field">
-        <div class="flabel"><span class="k-schedule"><ClockIcon /> Schedules</span><em>vises når én er aktiv</em></div>
-        <RefPicker kind="schedule" multi value={vp.v.schedules} onChange={(ids) => vp.onChange("schedules", ids)} />
-      </div>
-      <div class="field">
-        <div class="flabel"><span class="k-access"><LockIcon /> Access</span><em>alle skal være opfyldt</em></div>
-        <RefPicker kind="access" multi value={vp.v.access} onChange={(ids) => vp.onChange("access", ids)} />
-      </div>
-    </div>
-  );
+  const Visibility = (vp: { v: Vis; onChange: VisChange }) => <VisibilityGroup v={vp.v} onChange={vp.onChange} />;
 
   const selectedEl = () => {
     const s = sel();
     if (s.kind !== "el") return undefined;
     const f = findEl(draft, s.id);
-    return f ? draft.sections[f.si].columns[f.ci][f.i] : undefined;
+    return f ? elAt(draft, f)[f.i] : undefined;
   };
   const selectedSec = () => {
     const s = sel();
@@ -546,7 +572,9 @@ function PageWorkspace(p: { doc: Doc }) {
                   <div class="panel-b">
                     <div class="insp-title">
                       <h2>{def?.label ?? e.type}</h2>
-                      <span class="mono muted">{e.type} v{def?.version} · sektion {(f()?.si ?? 0) + 1}, kolonne {(f()?.ci ?? 0) + 1}</span>
+                      <span class="mono muted">
+                        {e.type} v{def?.version} · sektion {(f()?.si ?? 0) + 1}{f()?.fb ? " (uden adgang)" : ""}, kolonne {(f()?.ci ?? 0) + 1}
+                      </span>
                     </div>
                     <div class="group">
                       <div class="group-h">Felter</div>
@@ -558,7 +586,20 @@ function PageWorkspace(p: { doc: Doc }) {
                         issues={issuesAt(issues(), { section: f()?.si != null ? draft.sections[f()!.si].id : undefined, element: e.id })}
                       />
                     </div>
-                    <Visibility v={e} onChange={(k, ids) => updEl(e.id, (x) => { x[k] = ids; })} />
+                    <Show when={defs()!.element.fields.length}>
+                      <details class="group" open={Object.keys(e.settings ?? {}).some((k) => e.settings[k] != null && e.settings[k] !== "")}>
+                        <summary class="group-h">Indstillinger</summary>
+                        <Fields
+                          defs={defs()!.element.fields}
+                          values={e.settings}
+                          onChange={(k, v) => updEl(e.id, (x) => { x.settings = { ...(x.settings ?? {}), [k]: v }; })}
+                          idPrefix={e.id}
+                          path="settings."
+                          issues={issuesAt(issues(), { section: f()?.si != null ? draft.sections[f()!.si].id : undefined, element: e.id })}
+                        />
+                      </details>
+                    </Show>
+                    <Visibility v={e} onChange={(k, v) => updEl(e.id, (x) => setVis(x, k, v))} />
                   </div>
                 </>
               );
@@ -592,7 +633,34 @@ function PageWorkspace(p: { doc: Doc }) {
                       issues={issuesAt(issues(), { section: s.id })}
                     />
                   </div>
-                  <Visibility v={s} onChange={(k, ids) => updSec(s.id, (x) => { x[k] = ids; })} />
+                  <Visibility v={s} onChange={(k, v) => updSec(s.id, (x) => setVis(x, k, v))} />
+                  <div class="group">
+                    <div class="group-h"><span class="k-access"><LockIcon /></span> Uden adgang</div>
+                    <Show
+                      when={s.fallback}
+                      fallback={
+                        <>
+                          <div class="help">Vis andet indhold, når sektionens access ikke er opfyldt, fx et tilbud om abonnement.</div>
+                          <button onClick={() => updSec(s.id, (x) => { x.fallback = { layout: "1", columns: [[]] }; })}>+ Indhold uden adgang</button>
+                        </>
+                      }
+                    >
+                      <LayoutPicker big value={s.fallback!.layout} onPick={(l) => setLayout(s.id, l, true)} />
+                      <Show when={!s.access.length}>
+                        <div class="help warn">Sektionen har ingen access-regler, så indholdet uden adgang bliver aldrig vist.</div>
+                      </Show>
+                      <button
+                        class="danger"
+                        onClick={() => {
+                          const n = s.fallback!.columns.flat().length;
+                          if (n && !confirm(`Fjern indholdet uden adgang og dets ${n} element(er)?`)) return;
+                          updSec(s.id, (x) => { delete x.fallback; });
+                        }}
+                      >
+                        Fjern indhold uden adgang
+                      </button>
+                    </Show>
+                  </div>
                 </div>
               </>
             )}
@@ -604,7 +672,7 @@ function PageWorkspace(p: { doc: Doc }) {
               meta={meta()}
               issues={issues()}
               onField={(k, v) => mutate((p) => { p.fields[k] = v; })}
-              onVis={(k, ids) => mutate((p) => { p[k] = ids; })}
+              onVis={(k, v) => mutate((p) => setVis(p, k, v))}
               onRestored={(d) => {
                 setDraft(reconcile(normalize(d.draft)));
                 setMeta(d);
@@ -626,9 +694,9 @@ function PageInspector(p: {
   meta: Doc;
   issues: Issue[];
   onField: (k: string, v: unknown) => void;
-  onVis: (k: "schedules" | "access", ids: string[]) => void;
+  onVis: VisChange;
   onRestored: (d: Doc) => void;
-  Visibility: (vp: { v: Vis; onChange: (k: "schedules" | "access", ids: string[]) => void }) => any;
+  Visibility: (vp: { v: Vis; onChange: VisChange }) => any;
 }) {
   const node = () => tree().find((n) => n.id === p.id);
   const [title, setTitle] = createSignal(node()?.title ?? "");
@@ -704,5 +772,38 @@ function PageInspector(p: {
         </div>
       </div>
     </>
+  );
+}
+
+type VisChange = (k: "schedules" | "access" | "accessMatch", v: string[] | AccessMatch) => void;
+
+/** Sætter schedules, access eller accessMatch. «all» er standard og gemmes ikke. */
+function setVis(x: Vis, k: "schedules" | "access" | "accessMatch", v: string[] | AccessMatch) {
+  if (k === "accessMatch") {
+    if (v === "any") x.accessMatch = "any";
+    else delete x.accessMatch;
+  } else x[k] = v as string[];
+}
+
+function VisibilityGroup(p: { v: Vis; onChange: VisChange }) {
+  const any = () => p.v.accessMatch === "any";
+  return (
+    <div class="group">
+      <div class="group-h">Synlighed</div>
+      <div class="field">
+        <div class="flabel"><span class="k-schedule"><ClockIcon /> Schedules</span><em>vises når én er aktiv</em></div>
+        <RefPicker kind="schedule" multi value={p.v.schedules} onChange={(ids) => p.onChange("schedules", ids)} />
+      </div>
+      <div class="field">
+        <div class="flabel"><span class="k-access"><LockIcon /> Access</span><em>{any() ? "mindst én skal være opfyldt" : "alle skal være opfyldt"}</em></div>
+        <RefPicker kind="access" multi value={p.v.access} onChange={(ids) => p.onChange("access", ids)} />
+        <Show when={p.v.access.length > 1 || any()}>
+          <div class="seg" role="radiogroup" aria-label="Hvordan access-reglerne kombineres">
+            <button type="button" role="radio" aria-checked={!any()} classList={{ active: !any() }} onClick={() => p.onChange("accessMatch", "all")}>Alle (OG)</button>
+            <button type="button" role="radio" aria-checked={any()} classList={{ active: any() }} onClick={() => p.onChange("accessMatch", "any")}>Mindst én (ELLER)</button>
+          </div>
+        </Show>
+      </div>
+    </div>
   );
 }

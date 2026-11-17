@@ -9,9 +9,23 @@ Denne fil er arbejdsplanen for webmasteren. Den er skrevet, så man kan starte e
 | 1. Fundament | Validering af definitioner og kladder, ts-rs-typer, manual | Færdig, på main |
 | 2. Felttyper | Nye felttyper, `showWhen`, links til sider, group/list | Færdig, på main (dog ikke mediearkiv, artikelvælger og elementer i elementer) |
 | 3, del 1 | Valgmuligheder fra services (`optionsFrom`, `services.json`, mock) | Færdig, på main (f5f0793) |
+| Statamic-elementer | Elementer, datasources, access og globals fra frontend-webmaster-2021 (se nedenfor) | Færdig, på grenen `fase-4-statamic-elementer` |
 | **3, del 2** | **Udsnit af data fra en datasource i editoren** | **Næste skridt** |
 | 4. Drift og sikkerhed | Login, rettigheder, preview-token, webhook | Ikke startet |
 | 5. Editor-workflow | Bedre arbejdsgang for redaktørerne | Ikke startet |
+
+## Statamic-elementer (gjort)
+
+Valgt fra den gamle Statamic-webmaster (frontend-webmaster-2021, `resources/laravel/resources/fieldsets`): gruppe A, B og F.
+
+- **Elementer:** `articleList` (v2), `articleFlowGrid` (Statamics articleflow2), `headline`, `ad`, `text` (v2, formateret), `html`, `cards`, `cardModule`, `newsletter` (v2), `mostReadTabs`, `epaper`, `newsTicker` og `rightNow`.
+- **Datasources:** `feed`, `tagFeed`, `tagMix`, `profileFeed`, `themeFeed`, `opinionDeck`, `sponsoredTag`, `kilkayaStream`, `cxenseWidget`, `searchResults` og `userArticles`. De erstatter Statamics `mode`-felter.
+- **Felttyper:** `textarea` (ren tekst), `richtext` (nu ProseMirror-JSON, `api/src/richtext.rs` og `editor/src/RichText.tsx`), `tags` og `palette` på `color` (`palettes.json`).
+- **Fælles elementfelter:** `element.json` (element-id, UTM, skjul på enheder, CSS-klasser) i elementets `settings`.
+- **Access:** `accessMatch` (`all`/`any`), indhold uden adgang (`fallback`) på sektioner og access-typen `hasTag`.
+- **Side og globals:** nye sidefelter (skabelon, sprog, nøgleord, meta-tags, skjul topbanner/header/footer, breaking, ankermenu) og dokumentslagsen `global` (migration 0002) med `menu`, `appMessage`, `cookieConsent`, `adsTxt`, `cacheControl`, `notFound`, `appTheme`, `pushSettings` og `permissionTexts`. Sitet læser dem på `GET /api/site/globals`.
+
+Ikke taget med endnu: gruppe D (dæk, video, kort/data, Investor Academy, Event Buizz, enkeltsider) og E (artikelskabelonen). Listerne fra Statamic er reservelister i definitionerne; `editorial:feeds`, `editorial:profiles`, `editorial:mostReadPeriods` og `customer:newsletters` står i `services.json` og i mock-servicen.
 
 ## Vigtigste princip
 

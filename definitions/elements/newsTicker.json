@@ -1,0 +1,4 @@
+{
+  "type": "newsTicker", "version": 1, "label": "Nyhedsticker", "description": "De vigtigste nyheder lige nu som en rullende linje. Brug «Skjul på» for at styre enhederne.",
+  "fields": []
+}

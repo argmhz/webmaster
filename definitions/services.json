@@ -1,16 +1,20 @@
 {
   "editorial": {
     "baseUrl": "${EDITORIAL_URL}",
-    "headers": { "Authorization": "Bearer ${EDITORIAL_TOKEN}" },
+    "headers": {"Authorization": "Bearer ${EDITORIAL_TOKEN}"},
     "lists": {
-      "sections": { "path": "/sections", "items": "/data", "value": "/slug", "label": "/name" }
+      "sections": {"path": "/sections", "items": "/data", "value": "/slug", "label": "/name"},
+      "feeds": {"path": "/feeds", "items": "/data", "value": "/key", "label": "/name"},
+      "profiles": {"path": "/profiles", "items": "/data", "value": "/slug", "label": "/name"},
+      "mostReadPeriods": {"path": "/most-read-periods", "items": "/data", "value": "/key", "label": "/name"}
     }
   },
   "customer": {
     "baseUrl": "${CUSTOMER_URL}",
     "cacheSeconds": 600,
     "lists": {
-      "entitlements": { "path": "/entitlements", "items": "/entitlements", "value": "/code", "label": "/title" }
+      "entitlements": {"path": "/entitlements", "items": "/entitlements", "value": "/code", "label": "/title"},
+      "newsletters": {"path": "/newsletters", "items": "/newsletters", "value": "/id", "label": "/name"}
     }
   }
 }

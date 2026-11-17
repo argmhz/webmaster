@@ -1,12 +1,12 @@
 {
-  "type": "newsletter", "version": 1, "label": "Nyhedsbrev",
+  "type": "newsletter", "version": 2, "label": "Nyhedsbrev", "description": "Tilmelding til ét nyhedsbrev, den samlede tilmelding eller oversigten over alle nyhedsbreve.",
   "fields": [
-    { "key": "title", "type": "text", "label": "Overskrift" },
-    { "key": "list", "type": "select", "label": "Liste", "default": "morgen",
-      "options": [
-        { "value": "morgen", "label": "Morgenbrevet" },
-        { "value": "sport", "label": "Sport" },
-        { "value": "weekend", "label": "Weekend" }
-      ] }
+    {"key": "variant", "type": "select", "label": "Visning", "required": true, "default": "single", "options": [{"value": "single", "label": "Ét nyhedsbrev"}, {"value": "signup", "label": "Samlet tilmelding"}, {"value": "overview", "label": "Oversigt over alle"}]},
+    {"key": "newsletter", "type": "select", "label": "Nyhedsbrev", "required": true, "optionsFrom": "customer:newsletters", "options": [{"value": "morgen", "label": "Morgenbrevet"}, {"value": "eftermiddag", "label": "Eftermiddagsbrevet"}, {"value": "weekend", "label": "Weekend"}], "showWhen": {"field": "variant", "equals": "single"}},
+    {"key": "title", "type": "text", "label": "Overskrift", "required": true, "showWhen": {"field": "variant", "equals": "single"}},
+    {"key": "description", "type": "text", "label": "Beskrivelse", "showWhen": {"field": "variant", "equals": "single"}},
+    {"key": "section", "type": "text", "label": "Sektion", "required": true, "help": "Vises over overskriften og bruges i tracking.", "showWhen": {"field": "variant", "equals": "single"}},
+    {"key": "proBadge", "type": "boolean", "label": "Vis Pro-badge", "default": false, "showWhen": {"field": "variant", "equals": "single"}},
+    {"key": "confirmationText", "type": "text", "label": "Bekræftelse", "help": "Vises efter tilmelding. Tom: ingen bekræftelse.", "showWhen": {"field": "variant", "equals": "single"}}
   ]
 }

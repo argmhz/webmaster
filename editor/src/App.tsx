@@ -14,10 +14,11 @@ const TABS: { view: View; label: string; kind?: RefKind }[] = [
   { view: "datasource", label: "Datasources", kind: "datasource" },
   { view: "schedule", label: "Schedules", kind: "schedule" },
   { view: "access", label: "Access", kind: "access" },
+  { view: "global", label: "Globals", kind: "global" },
   { view: "redirects", label: "Redirects" },
   { view: "definitions", label: "Definitioner" },
 ];
-const isRefKind = (v: View): v is RefKind => v === "datasource" || v === "schedule" || v === "access";
+const isRefKind = (v: View): v is RefKind => v === "datasource" || v === "schedule" || v === "access" || v === "global";
 
 export function App() {
   const [ready, setReady] = createSignal(false);

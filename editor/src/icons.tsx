@@ -10,12 +10,13 @@ const svg = (children: JSX.Element) => (
 export const DbIcon = () => svg(<><ellipse cx="8" cy="4" rx="5" ry="2" /><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4" /><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" /></>);
 export const ClockIcon = () => svg(<><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></>);
 export const LockIcon = () => svg(<><rect x="3.5" y="7" width="9" height="7" rx="1.5" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></>);
+export const GlobeIcon = () => svg(<><circle cx="8" cy="8" r="6" /><path d="M2 8h12" /><path d="M8 2c1.8 1.7 2.6 3.7 2.6 6S9.8 12.3 8 14c-1.8-1.7-2.6-3.7-2.6-6S6.2 3.7 8 2z" /></>);
 export const BlockIcon = () => svg(<><rect x="2.5" y="3" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11" /></>);
 
 export function KindIcon(p: { kind: RefKind }) {
   return (
     <span class={`k-${p.kind}`}>
-      {p.kind === "datasource" ? <DbIcon /> : p.kind === "schedule" ? <ClockIcon /> : <LockIcon />}
+      {p.kind === "datasource" ? <DbIcon /> : p.kind === "schedule" ? <ClockIcon /> : p.kind === "global" ? <GlobeIcon /> : <LockIcon />}
     </span>
   );
 }
@@ -31,7 +32,9 @@ export function VisBadges(p: { v: Partial<Vis>; ds?: number }) {
         <span class="badge k-schedule" title={`${p.v.schedules!.length} schedule(s) – vises når én er aktiv`}><ClockIcon />{p.v.schedules!.length}</span>
       </Show>
       <Show when={p.v.access?.length}>
-        <span class="badge k-access" title={`${p.v.access!.length} access-regel(er) – alle skal være opfyldt`}><LockIcon />{p.v.access!.length}</span>
+        <span class="badge k-access" title={`${p.v.access!.length} access-regel(er) – ${p.v.accessMatch === "any" ? "mindst én" : "alle"} skal være opfyldt`}>
+          <LockIcon />{p.v.access!.length}{p.v.accessMatch === "any" && p.v.access!.length > 1 ? " ∨" : ""}
+        </span>
       </Show>
     </span>
   );

@@ -1,0 +1,6 @@
+{
+  "type": "adsTxt", "label": "ads.txt", "description": "Indholdet af /ads.txt.",
+  "fields": [
+    {"key": "content", "type": "textarea", "label": "Indhold"}
+  ]
+}

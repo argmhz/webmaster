@@ -4,6 +4,7 @@ mod error;
 mod ids;
 mod redirects;
 mod refs;
+mod richtext;
 mod seed;
 mod services;
 mod site;
@@ -73,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
         // sitet (kun konfiguration – sitet resolver selv datasources, schedules og access)
         .route("/site/page", get(site::page))
         .route("/site/tree", get(site::tree))
+        .route("/site/globals", get(site::globals))
         .route("/site/redirects", get(redirects::list))
         .with_state(state);
 

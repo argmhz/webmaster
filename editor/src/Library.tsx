@@ -10,7 +10,7 @@ import {
 } from "./store";
 import { fuzzy, highlight } from "./util";
 
-/** Bibliotek for datasources, schedules eller access: liste til venstre, editor til højre. */
+/** Bibliotek for datasources, schedules, access eller globals: liste til venstre, editor til højre. */
 export function Library(p: { kind: RefKind }) {
   const [q, setQ] = createSignal("");
   const docs = () => library().filter((d) => d.kind === p.kind);
@@ -27,13 +27,17 @@ export function Library(p: { kind: RefKind }) {
     const id = route().id;
     return id && docs().some((d) => d.id === id) ? id : undefined;
   };
-  const [newType, setNewType] = createSignal(refTypes(p.kind)[0]?.type ?? "");
+  /** Typer, der kan oprettes. En global uden «multiple» kan kun oprettes én gang. */
+  const creatable = () => refTypes(p.kind).filter((t) => p.kind !== "global" || t.multiple || !docs().some((d) => d.type === t.type));
+  const [newType, setNewType] = createSignal(creatable()[0]?.type ?? "");
+  const chosen = () => (creatable().some((t) => t.type === newType()) ? newType() : creatable()[0]?.type ?? "");
 
   const create = async () => {
-    const t = refType(p.kind, newType());
+    const t = refType(p.kind, chosen());
     if (!t) return;
+    const name = p.kind === "global" && !t.multiple ? t.label : `Ny ${t.label.toLowerCase()}`;
     try {
-      const d = await api.createDoc({ kind: p.kind, type: t.type, name: `Ny ${t.label.toLowerCase()}`, draft: { fields: defaultsFor(t.fields) } });
+      const d = await api.createDoc({ kind: p.kind, type: t.type, name, draft: { fields: defaultsFor(t.fields) } });
       await refreshLibrary();
       navigate(p.kind, d.id);
     } catch (e) {
@@ -64,7 +68,9 @@ export function Library(p: { kind: RefKind }) {
                         <span class="nm">{d.name}</span>
                         <span class="muted">{typeLabel(p.kind, d.type)}</span>
                       </span>
-                      <span class="uses mono" title="Antal steder den bruges">{d.used_by}×</span>
+                      <Show when={p.kind !== "global"}>
+                        <span class="uses mono" title="Antal steder den bruges">{d.used_by}×</span>
+                      </Show>
                     </button>
                   </li>
                 );
@@ -73,10 +79,10 @@ export function Library(p: { kind: RefKind }) {
           </ul>
         </div>
         <div class="panel-f">
-          <select value={newType()} onChange={(e) => setNewType(e.currentTarget.value)} aria-label="Type">
-            <For each={refTypes(p.kind)}>{(t) => <option value={t.type}>{t.label}</option>}</For>
+          <select value={chosen()} onChange={(e) => setNewType(e.currentTarget.value)} aria-label="Type" disabled={!creatable().length}>
+            <For each={creatable()} fallback={<option value="">Alle er oprettet</option>}>{(t) => <option value={t.type}>{t.label}</option>}</For>
           </select>
-          <button onClick={create}>+ Ny</button>
+          <button onClick={create} disabled={!creatable().length}>+ Ny</button>
         </div>
       </aside>
       <Show
@@ -86,7 +92,11 @@ export function Library(p: { kind: RefKind }) {
           <main class="lib-main">
             <div class="empty-state">
               Vælg en {KIND[p.kind].one} til venstre, eller opret en ny.
-              <div class="help">De kan genbruges overalt. Ret den ét sted, så slår det igennem alle steder, den bruges.</div>
+              <div class="help">
+                {p.kind === "global"
+                  ? "Globals er indhold, der gælder for hele sitet, fx menuer og cookie consent. Sitet henter dem fra /api/site/globals."
+                  : "De kan genbruges overalt. Ret den ét sted, så slår det igennem alle steder, den bruges."}
+              </div>
             </div>
           </main>
         }
@@ -155,7 +165,12 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
 
   const siteShape = () => {
     const base = { type: p.doc.type, name: state.name, fields: state.draft.fields };
-    return p.kind === "datasource" ? { [p.doc.id]: { ...base, source: def()?.source } } : { [p.doc.id]: base };
+    if (p.kind === "global") {
+      const item = { id: p.doc.id, name: state.name, fields: state.draft.fields };
+      return { globals: { [p.doc.type ?? ""]: def()?.multiple ? [item] : item } };
+    }
+    const one = p.kind === "datasource" ? { [p.doc.id]: { ...base, source: def()?.source } } : { [p.doc.id]: base };
+    return { refs: { [KIND[p.kind].defsKey]: one } };
   };
 
   return (
@@ -183,6 +198,8 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
             class="title-input"
             value={state.name}
             aria-label="Navn"
+            readOnly={p.kind === "global" && !def()?.multiple}
+            title={p.kind === "global" && !def()?.multiple ? "Der er kun én, så navnet er typens navn" : ""}
             onInput={(e) => { setState("name", e.currentTarget.value); saver.schedule(); }}
           />
           <div class="mono muted">{p.doc.id}</div>
@@ -206,6 +223,7 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
           </div>
         </section>
         <section class="lib-side">
+          <Show when={p.kind !== "global"}>
           <div class="group">
             <div class="group-h">Bruges af</div>
             <Show when={usedBy()?.length} fallback={<div class="help">Bruges ikke nogen steder endnu.</div>}>
@@ -221,10 +239,11 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
               </ul>
             </Show>
           </div>
+          </Show>
           <div class="group">
             <div class="group-h">Sådan ser sitet den</div>
             <div class="json small">
-              <pre innerHTML={highlight({ refs: { [KIND[p.kind].defsKey]: siteShape() } })} />
+              <pre innerHTML={highlight(siteShape())} />
             </div>
           </div>
         </section>

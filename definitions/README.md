@@ -1,6 +1,6 @@
 # Manual til definitions/
 
-Mappen beskriver, hvad redaktørerne kan bygge i webmasteren: hvilke elementer der findes, hvilke felter de har, og hvilke datasources, schedules og access-regler der kan oprettes. Udviklerne ejer filerne i git. Editoren bygger sine formularer ud fra dem, og API'et validerer kladderne mod dem, før de publiceres.
+Mappen beskriver, hvad redaktørerne kan bygge i webmasteren: hvilke elementer der findes, hvilke felter de har, og hvilke datasources, schedules, access-regler og globals der kan oprettes. Udviklerne ejer filerne i git. Editoren bygger sine formularer ud fra dem, og API'et validerer kladderne mod dem, før de publiceres.
 
 Filerne læses ved hvert kald, så en ændring slår igennem med det samme. Det kræver ingen genstart.
 
@@ -11,13 +11,17 @@ Filerne læses ved hvert kald, så en ændring slår igennem med det samme. Det 
 - [Datasources](#datasources)
 - [Schedules](#schedules)
 - [Access](#access)
-- [Side og sektion](#side-og-sektion)
+  - [Indhold uden adgang](#indhold-uden-adgang)
+- [Globals](#globals)
+- [Side, sektion og element](#side-sektion-og-element)
 - [Layouts](#layouts)
 - [Felter](#felter)
   - [Valgmuligheder](#valgmuligheder)
   - [Betingede felter](#betingede-felter)
 - [Felttyper](#felttyper)
   - [Links til sider](#links-til-sider)
+  - [Formateret tekst](#formateret-tekst)
+  - [Paletter](#paletter)
   - [Gruppe og liste](#gruppe-og-liste)
 - [Services](#services)
 - [Validering](#validering)
@@ -28,13 +32,16 @@ Filerne læses ved hvert kald, så en ændring slår igennem med det samme. Det 
 
 | Sti | Hvad | Format |
 |---|---|---|
-| `page.json` | Sidens egne felter (titel, meta osv.) | [Side og sektion](#side-og-sektion) |
-| `section.json` | Felter på hver sektion (baggrund, luft osv.) | [Side og sektion](#side-og-sektion) |
+| `page.json` | Sidens egne felter (titel, meta osv.) | [Side, sektion og element](#side-sektion-og-element) |
+| `section.json` | Felter på hver sektion (baggrund, luft osv.) | [Side, sektion og element](#side-sektion-og-element) |
+| `element.json` | Felter, som alle elementer har (element-id, CSS-klasser osv.). Valgfri. | [Side, sektion og element](#side-sektion-og-element) |
 | `layouts.json` | Kolonnelayouts, en sektion kan have | [Layouts](#layouts) |
 | `elements/*.json` | Én fil pr. elementtype | [Elementer](#elementer) |
 | `datasources/*.json` | Én fil pr. datasource-type | [Datasources](#datasources) |
 | `schedules/*.json` | Én fil pr. schedule-type | [Schedules](#schedules) |
 | `access/*.json` | Én fil pr. access-type | [Access](#access) |
+| `globals/*.json` | Én fil pr. global-type, fx menu og cookie consent | [Globals](#globals) |
+| `palettes.json` | Faste farvepaletter til farvefelter. Valgfri. | [Paletter](#paletter) |
 | `services.json` | Services, som `optionsFrom` henter valgmuligheder fra. Valgfri. | [Services](#services) |
 
 Kun filer, der ender på `.json`, bliver læst. Filnavnet er ligegyldigt for systemet, men brug typenavnet, fx `elements/articleList.json` til typen `articleList`. Det er `type` inde i filen, der gælder.
@@ -70,10 +77,15 @@ Et element er en byggeklods, redaktøren kan lægge i en kolonne på en side.
 Sitet får elementet sådan her i `GET /api/site/page`:
 
 ```json
-{ "id": "el_f3", "type": "articleList", "version": 1,
+{ "id": "el_f3", "type": "articleList", "version": 2,
   "fields": { "title": "Seneste nyt", "articles": { "ref": "ds_seneste" } },
-  "schedules": [], "access": [] }
+  "settings": { "elementId": "forside-seneste" },
+  "schedules": [], "access": [], "accessMatch": "all" }
 ```
+
+`settings` er de fælles felter fra [`element.json`](#side-sektion-og-element).
+
+Elementerne er lavet ud fra fieldsets i den gamle Statamic-webmaster (frontend-webmaster-2021). Hvor Statamic lod hvert element vælge sin kilde med et `mode`-felt (datasource, tag, profil …), har vi i stedet ét datasource-felt, der tager flere datasource-typer, fx `feed`, `tagFeed`, `profileFeed` og `kilkayaStream`.
 
 ## Datasources
 
@@ -139,11 +151,68 @@ En access-regel afgør, hvem der kan se noget. Den kan sættes på side, sektion
 
 Nøglerne er de samme som for schedules. Sitet fortolker reglen og skal kende typen.
 
+Med `"accessMatch": "any"` på siden, sektionen eller elementet er det nok, at **én** af reglerne er opfyldt (ELLER). Uden `accessMatch`, eller med `"all"`, skal alle være opfyldt. I sitets API står `accessMatch` altid på sektioner og elementer.
+
 Webmasteren ved ikke, hvad felterne betyder. Den ved for eksempel ikke, om `entitlements` betyder "mindst én af" eller "alle". Skriv det i `description`, så redaktøren kan se det.
 
-## Side og sektion
+### Indhold uden adgang
 
-`page.json` og `section.json` har kun `fields`. `type` må gerne stå der, men bruges ikke.
+En sektion med access-regler kan have indhold, der vises **i stedet**, når reglerne ikke er opfyldt, fx et tilbud om abonnement. Det svarer til Statamics AccessWrapper med fallback-elementer. Det har sit eget layout og sine egne kolonner, men deler sektionens indstillinger:
+
+```json
+{ "id": "sec_pro", "layout": "1", "access": ["acc_abonnent"], "accessMatch": "all",
+  "columns": [{ "width": 12, "elements": [ … ] }],
+  "fallback": { "layout": "1-1", "columns": [{ "width": 6, "elements": [ … ] }, { "width": 6, "elements": [ … ] }] } }
+```
+
+Sitet viser `columns`, når access er opfyldt, og ellers `fallback.columns`. Schedules gælder for begge. Har sektionen `fallback`, men ingen access-regler, giver valideringen en advarsel, fordi indholdet aldrig bliver vist.
+
+## Globals
+
+En global er indhold, der gælder for hele sitet og ikke hører til en side, fx en menu, app-beskeder, cookie consent eller ads.txt. Typerne står i `globals/`, og redaktørerne udfylder dem under fanen **Globals**. De har kladde, publicering og versioner som andre dokumenter.
+
+```json
+{
+  "type": "adsTxt",
+  "label": "ads.txt",
+  "description": "Indholdet af /ads.txt.",
+  "fields": [
+    { "key": "content", "type": "textarea", "label": "Indhold" }
+  ]
+}
+```
+
+Nøglerne er de samme som for schedules, plus:
+
+| Nøgle | Betydning |
+|---|---|
+| `multiple` | `true` betyder, at der kan være flere dokumenter af typen, fx en menu pr. sted på sitet. Uden den er der præcis ét, og det har id'et `gl_<type>`, fx `gl_adsTxt`. |
+
+Felter af typen `datasource` kan ikke bruges i globals. Links til sider kan, og de får `href` som alle andre steder.
+
+Sitet henter alle publicerede globals på én gang:
+
+```
+GET /api/site/globals            (?preview=true giver kladderne)
+```
+
+```json
+{ "preview": false, "globals": {
+  "adsTxt": { "id": "gl_adsTxt", "name": "ads.txt", "version": 16, "publishedAt": "…", "fields": { "content": "…" } },
+  "appMessage": null,
+  "menu": [ { "id": "gl_hovedmenu", "name": "Hovedmenu", "version": 12, "publishedAt": "…", "fields": { "items": [ … ] } } ]
+} }
+```
+
+Alle typer står i svaret. En type uden `multiple`, som ikke er oprettet og publiceret, er `null`, og en type med `multiple` er en liste, der kan være tom. Sitet finder fx en menu på dens `name`.
+
+## Side, sektion og element
+
+`page.json`, `section.json` og `element.json` har kun `fields`. `type` må gerne stå der, men bruges ikke.
+
+- `page.json`: sidens felter. De står i `fields` på siden i sitets API.
+- `section.json`: felter på hver sektion. De står i `settings` på sektionen.
+- `element.json`: felter, som **alle** elementer har, fx element-id til tracking, UTM-kampagne, "Skjul på" og CSS-klasser. De står i `settings` på elementet, ved siden af elementets egne `fields`, så nøglerne ikke kan støde sammen. I editoren ligger de under **Indstillinger** på elementet.
 
 ```json
 {
@@ -153,8 +222,6 @@ Webmasteren ved ikke, hvad felterne betyder. Den ved for eksempel ikke, om `enti
   ]
 }
 ```
-
-Sidens felter står i `fields` på siden i sitets API, og sektionens står i `settings`.
 
 ## Layouts
 
@@ -195,14 +262,15 @@ Et felt er en linje i `fields`. Alle felter har `key` og `type`. Resten afhænge
 
 | Nøgle | Gælder for | Betydning |
 |---|---|---|
-| `placeholder` | `text`, `richtext`, `number`, `link`, `image` | Grå tekst i et tomt felt. Gemmes ikke. |
-| `minLength`, `maxLength` | `text`, `richtext` | Mindste og største antal tegn. Editoren viser en tæller ved `maxLength`. |
-| `pattern` | `text`, `richtext` | Et regulært udtryk, som **hele** værdien skal matche, fx `"[a-z0-9-]+"`. Skriv i `help`, hvad der er tilladt, for den tekst bruges i fejlbeskeden. |
+| `placeholder` | `text`, `textarea`, `richtext`, `number`, `link`, `image`, `tags` | Grå tekst i et tomt felt. Gemmes ikke. |
+| `minLength`, `maxLength` | `text`, `textarea`, `richtext` | Mindste og største antal tegn. Editoren viser en tæller ved `maxLength`. |
+| `pattern` | `text`, `textarea`, `tags` | Et regulært udtryk, som **hele** værdien (ved `tags`: hvert punkt) skal matche, fx `"[a-z0-9-]+"`. Skriv i `help`, hvad der er tilladt, for den tekst bruges i fejlbeskeden. |
 | `min`, `max` | `number` | Mindste og største tilladte værdi. |
 | `step` | `number` | Værdien skal gå op i `step`, regnet fra `min` (eller 0). |
 | `options` | `select`, `multiselect` (påkrævet) | De tilladte værdier. Se [Valgmuligheder](#valgmuligheder). |
 | `optionsFrom` | `select`, `multiselect` | Henter valgmulighederne fra en anden service, skrevet som `"service:liste"`, fx `"editorial:sections"`. Listen skal stå i [services.json](#services). `options` er stadig påkrævet og bruges som reserveliste. |
-| `minItems`, `maxItems` | `multiselect`, `list` | Mindste og største antal valgte værdier eller punkter. |
+| `minItems`, `maxItems` | `multiselect`, `list`, `tags` | Mindste og største antal valgte værdier eller punkter. |
+| `palette` | `color` | Navnet på en palet i `palettes.json`. Så kan kun dens farver vælges. |
 | `accepts` | `datasource` (påkrævet) | De datasource-typer, feltet tager imod. |
 | `fields` | `group`, `list` (påkrævet) | Underfelterne. De har de samme muligheder som alle andre felter og kan selv være `group` eller `list`. |
 | `itemLabel` | `list` | Nøglen på det underfelt, hvis værdi bruges som overskrift på hvert punkt i editoren og i fejlbeskeder. |
@@ -244,7 +312,9 @@ Et skjult felt valideres ikke, heller ikke `required`. En værdi, der allerede s
 | Type | Editor | Værdi i JSON | Valideres |
 |---|---|---|---|
 | `text` | Tekstfelt på én linje | `"tekst"` | at det er tekst, `minLength`, `maxLength` og `pattern` |
-| `richtext` | Tekstfelt over flere linjer | `"tekst"` | som `text` |
+| `textarea` | Tekstfelt over flere linjer, uden formatering | `"tekst"` | som `text` |
+| `richtext` | Editor med formatering | Et [ProseMirror-dokument](#formateret-tekst) | skemaet, og `minLength`/`maxLength` på antal tegn i teksten |
+| `tags` | Fri liste af tekster. Enter eller komma tilføjer. | `["pro", "analyse"]` | at det er tekster uden dubletter og tomme punkter, `pattern` på hvert punkt, `minItems` og `maxItems` |
 | `number` | Talfelt | `12` | at det er et tal, `min`, `max` og `step` |
 | `boolean` | Afkrydsningsfelt | `true` / `false` | at det er sandt eller falsk |
 | `select` | Dropdown | `"newest"` | at værdien findes i `options` |
@@ -252,7 +322,7 @@ Et skjult felt valideres ikke, heller ikke `required`. En værdi, der allerede s
 | `date` | Dato | `"2026-11-18"` | formatet `ÅÅÅÅ-MM-DD`, og at datoen findes |
 | `datetime` | Dato og tid | `"2026-11-18T18:00"` | formatet `ÅÅÅÅ-MM-DDTTT:MM` (sekunder må gerne være med). Uden tidszone. |
 | `time` | Klokkeslæt | `"06:00"` | formatet `TT:MM` |
-| `color` | Farvevælger og tekstfelt | `"#e4002b"` | `#rgb`, `#rrggbb` eller `#rrggbbaa` |
+| `color` | Farvevælger og tekstfelt, eller farvefelter, hvis den har en [palet](#paletter) | `"#e4002b"` | `#rgb`, `#rrggbb` eller `#rrggbbaa`. Med palet: at farven er i paletten |
 | `link` | Tekstfelt med knappen **Side…** | `"/nyheder"` eller `{ "page": "pg_…" }` | tekst skal starte med `/`, `#`, `https://`, `http://`, `mailto:` eller `tel:`. En side skal findes og være publiceret. |
 | `image` | Tekstfelt (mediearkivet er ikke koblet på endnu) | `"/img/valg.jpg"` | at det er tekst |
 | `datasource` | Vælg en delt datasource eller opret en lokal | `{ "ref": "ds_…" }` eller `{ "inline": { "type": "…", "fields": { … } } }` | at den findes, er af en type i `accepts` og er publiceret. En lokal datasource får sine egne felter valideret. |
@@ -269,6 +339,45 @@ Vælger redaktøren en side med **Side…**, gemmes sidens id, `{ "page": "pg_ko
 
 Sitet skal altså kunne håndtere et link-felt, der enten er en tekst eller et objekt med `href`.
 
+### Formateret tekst
+
+Et `richtext`-felt gemmes som et [ProseMirror](https://prosemirror.net/)-dokument med et fast, lukket skema, så sitet kan rendere alt, der kan gemmes:
+
+```json
+{ "type": "doc", "content": [
+  { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Bliv abonnent" }] },
+  { "type": "paragraph", "content": [
+    { "type": "text", "text": "Se " },
+    { "type": "text", "text": "priserne", "marks": [{ "type": "link", "attrs": { "href": "/abonnement", "target": null } }] }
+  ] }
+] }
+```
+
+| Slags | Typer |
+|---|---|
+| Blokke | `paragraph`, `heading` (`attrs.level` 2–4), `bulletList` og `orderedList` (`attrs.start`) med `listItem`, `blockquote`, `horizontalRule` |
+| Inline | `text`, `hardBreak` |
+| Marks | `bold`, `italic`, `underline`, `strike`, `link` (`attrs.href` som et link-felt, `attrs.target` er `"_blank"` eller `null`) |
+
+Et dokument uden tekst (fx kun et tomt afsnit) tæller som tomt, så `required` virker. Editoren sender et tomt felt i stedet for et tomt dokument. Skemaet står to steder, i `api/src/richtext.rs` og `editor/src/RichText.tsx`. Ændrer du det, skal begge steder og sitet ændres.
+
+### Paletter
+
+`palettes.json` giver farvefelter en fast palet, så redaktørerne kun kan vælge brandfarverne:
+
+```json
+{ "brand": [
+  { "value": "#872324", "label": "Børsen Pro" },
+  { "value": "#282828", "label": "Ink" }
+] }
+```
+
+```json
+{ "key": "headlineColor", "type": "color", "label": "Farve på rubrik", "palette": "brand" }
+```
+
+Når definitionerne læses, lægges paletten i feltets `options`, så editoren og `GET /api/definitions` ser farverne direkte. Du kan også skrive `options` på et farvefelt selv, men ikke både `palette` og `options`. Store og små bogstaver i farven er ligegyldige.
+
 ### Gruppe og liste
 
 ```json
@@ -284,6 +393,8 @@ En `group` samler felter, der hører sammen, fx tekst og link på en knap. Værd
 Fejl i underfelter peger på stien til feltet, fx `links.2.label` og `Linkliste › Links nr. 3 «Sport»`.
 
 En ukendt felttype er en fejl i definitionen, og filen bliver sprunget over. Hvis du har brug for en ny type, skal den laves i både API'et (`api/src/defs.rs` og `api/src/validate.rs`) og editoren (`editor/src/FieldEditor.tsx`).
+
+Statamic-feltet `taggable` svarer til `tags`, `bard` til `richtext`, `textarea` til `textarea`, `toggle` til `boolean`, `entries` mod sider til `link`, `replicator` og `grid` til `list` og Statamics faste farveliste til `color` med `palette`.
 
 ## Services
 
@@ -352,6 +463,8 @@ Det her bliver tjekket:
 - at `type`, `key` og `layout` har gyldige navne og ikke findes to gange,
 - at ingen felter bruger en reserveret nøgle,
 - at `select` og `multiselect` har `options` uden dubletter, og at `group` og `list` har `fields`,
+- at `palette` findes i `palettes.json`, og at farverne i paletter og i `options` på farvefelter er gyldige,
+- at `multiple` kun bruges på globals, og at element.json og globals ikke har datasource-felter,
 - at hver egenskab kun bruges på de typer, den hører til, fx `maxLength` kun på tekst,
 - at `min` ≤ `max`, `minLength` ≤ `maxLength`, `minItems` ≤ `maxItems`, og at `step` er større end 0,
 - at `pattern` er et gyldigt regulært udtryk,
@@ -370,8 +483,8 @@ Det her bliver tjekket:
 
 | Niveau | Eksempler | Blokerer publicering |
 |---|---|---|
-| `error` | Et påkrævet felt er tomt. En værdi står ikke i den hentede liste fra `optionsFrom`. En værdi er ugyldig (også inde i grupper og lister). Et link peger på en side, der ikke findes eller ikke er publiceret. En element-, datasource-, schedule- eller access-type findes ikke længere. En reference peger på noget, der ikke findes eller ikke er publiceret. En datasource er af en type, feltet ikke tager imod. Elementer ligger i en kolonne, layoutet ikke har. | ja |
-| `warning` | Kladden har et felt, som ikke længere findes i definitionen. En værdi i et felt med `optionsFrom` kunne ikke tjekkes, fordi servicen ikke svarer, og den står ikke i reservelisten. | nej |
+| `error` | Et påkrævet felt er tomt. En værdi står ikke i den hentede liste fra `optionsFrom`. En værdi er ugyldig (også inde i grupper og lister). Et link peger på en side, der ikke findes eller ikke er publiceret. En element-, datasource-, schedule- eller access-type findes ikke længere. En reference peger på noget, der ikke findes eller ikke er publiceret. En datasource er af en type, feltet ikke tager imod. Elementer ligger i en kolonne, layoutet ikke har. Formateret tekst følger ikke skemaet. `accessMatch` er hverken `all` eller `any`. | ja |
+| `warning` | Kladden har et felt, som ikke længere findes i definitionen. En sektion har indhold uden adgang, men ingen access-regler. En værdi i et felt med `optionsFrom` kunne ikke tjekkes, fordi servicen ikke svarer, og den står ikke i reservelisten. | nej |
 
 Hvert problem har `location` i klar tekst, fx `Sektion 2 › kolonne 1 › Artikelliste «Sport»`, og `section`, `element` og `field`, så editoren kan finde stedet.
 

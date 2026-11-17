@@ -1,0 +1,25 @@
+{
+  "type": "appMessage", "label": "App-besked", "description": "Beskeder i appen, fx om at opdatere til en ny version.",
+  "fields": [
+    {"key": "messages", "type": "list", "label": "Beskeder", "itemLabel": "header", "fields": [
+        {"key": "os", "type": "select", "label": "Styresystem", "required": true, "default": "ios", "options": [{"value": "ios", "label": "iOS"}, {"value": "android", "label": "Android"}]},
+        {"key": "condition", "type": "select", "label": "Versioner", "default": "include", "options": [{"value": "include", "label": "Kun disse versioner"}, {"value": "exclude", "label": "Alle undtagen disse"}]},
+        {"key": "osVersions", "type": "tags", "label": "Versioner", "help": "Fx 17.2"},
+        {"key": "header", "type": "text", "label": "Overskrift", "required": true},
+        {"key": "message", "type": "textarea", "label": "Besked", "required": true},
+        {"key": "link", "type": "link", "label": "Link"},
+        {"key": "linkText", "type": "text", "label": "Linktekst", "showWhen": {"field": "link", "notEmpty": true}},
+        {"key": "dismissible", "type": "boolean", "label": "Kan lukkes", "default": true},
+        {"key": "dismissText", "type": "text", "label": "Tekst på luk-knap", "showWhen": {"field": "dismissible", "equals": true}}
+      ] },
+    {"key": "fallback", "type": "group", "label": "Reservebesked", "help": "Vises, når appen er for gammel til beskederne ovenfor.", "fields": [
+        {"key": "lock", "type": "boolean", "label": "Lås appen", "default": false},
+        {"key": "header", "type": "text", "label": "Overskrift"},
+        {"key": "message", "type": "textarea", "label": "Besked"},
+        {"key": "appStoreLink", "type": "link", "label": "Link til App Store"},
+        {"key": "appStoreLinkText", "type": "text", "label": "Linktekst, App Store"},
+        {"key": "playStoreLink", "type": "link", "label": "Link til Google Play"},
+        {"key": "playStoreLinkText", "type": "text", "label": "Linktekst, Google Play"}
+      ] }
+  ]
+}

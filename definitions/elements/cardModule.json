@@ -1,0 +1,14 @@
+{
+  "type": "cardModule", "version": 1, "label": "Kortmodul", "description": "Overskrift, intro og en række kort med en knap.",
+  "fields": [
+    {"key": "title", "type": "text", "label": "Overskrift"},
+    {"key": "intro", "type": "textarea", "label": "Intro"},
+    {"key": "cardType", "type": "select", "label": "Kort", "default": "white", "options": [{"value": "white", "label": "Hvide"}, {"value": "transparent", "label": "Gennemsigtige"}]},
+    {"key": "cards", "type": "list", "label": "Kort", "required": true, "minItems": 1, "itemLabel": "headline", "fields": [
+        {"key": "headline", "type": "text", "label": "Rubrik", "required": true},
+        {"key": "body", "type": "textarea", "label": "Tekst"},
+        {"key": "buttonText", "type": "text", "label": "Knaptekst"},
+        {"key": "buttonLink", "type": "link", "label": "Knaplink", "showWhen": {"field": "buttonText", "notEmpty": true}}
+      ] }
+  ]
+}
