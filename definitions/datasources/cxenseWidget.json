@@ -1,5 +1,6 @@
 {
   "type": "cxenseWidget", "source": "cxense", "label": "Cxense-widget", "description": "Anbefalinger fra en Cxense-widget.",
+  "previewNote": "Cxense er ikke sat op i webmasteren",
   "fields": [
     {"key": "widgetId", "type": "text", "label": "Widget-id", "required": true}
   ]

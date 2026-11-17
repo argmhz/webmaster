@@ -1,5 +1,6 @@
 {
   "type": "kilkayaStream", "source": "kilkaya", "label": "Kilkaya-stream", "description": "Artikler fra en Kilkaya-stream (anbefalinger og mest læste).",
+  "previewNote": "Kilkaya er ikke sat op i webmasteren",
   "fields": [
     {"key": "streamUrl", "type": "text", "label": "Stream-URL", "required": true, "pattern": "https://.+", "help": "Skal starte med https://"}
   ]

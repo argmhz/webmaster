@@ -1,6 +1,7 @@
 {
   "type": "articleQuery", "source": "editorial", "label": "Artikel-forespørgsel",
   "description": "Henter artikler fra den redaktionelle service ud fra sektion, tags og sortering.",
+  "preview": {"from": "editorial:articles", "query": {"section": "{section}", "tags": "{tags}", "sort": "{sort}", "limit": "5"}},
   "fields": [
     { "key": "section", "type": "select", "label": "Sektion", "optionsFrom": "editorial:sections", "options": ["indland", "udland", "sport", "kultur", "erhverv"] },
     { "key": "tags", "type": "text", "label": "Tags", "help": "Kommasepareret" },

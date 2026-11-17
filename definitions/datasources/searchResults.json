@@ -1,5 +1,6 @@
 {
   "type": "searchResults", "source": "editorial", "label": "Søgeresultater", "description": "Resultaterne af den besøgendes søgning. Bruges på søgesiden.",
+  "previewNote": "Afhænger af den besøgendes søgning",
   "fields": [
     {"key": "debounceMs", "type": "number", "label": "Vent før søgning (ms)", "default": 300, "min": 0, "max": 2000, "step": 50}
   ]

@@ -36,7 +36,13 @@ pub struct ServiceDef {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(as = "Option<u32>")]
     pub cache_seconds: Option<u64>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<BTreeMap<String, ListDef>>", optional)]
     pub lists: BTreeMap<String, ListDef>,
+    /// Udsnit af data, som datasources kan vise i editoren (`preview` på datasource-typen).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<BTreeMap<String, crate::previews::PreviewDef>>", optional)]
+    pub previews: BTreeMap<String, crate::previews::PreviewDef>,
 }
 
 /// Hvordan en liste hentes og læses. `items`, `value` og `label` er JSON-pointere.
@@ -59,18 +65,18 @@ pub struct ListDef {
 }
 
 const DEFAULT_CACHE: u64 = 300;
-const RETRY_AFTER: Duration = Duration::from_secs(30);
-const TIMEOUT: Duration = Duration::from_secs(3);
+pub(crate) const RETRY_AFTER: Duration = Duration::from_secs(30);
+pub(crate) const TIMEOUT: Duration = Duration::from_secs(3);
 
-fn is_pointer(p: &str) -> bool {
+pub(crate) fn is_pointer(p: &str) -> bool {
     p.is_empty() || p.starts_with('/')
 }
 
 /// Problemer i én service i services.json.
 pub fn check(name: &str, s: &ServiceDef) -> Vec<String> {
     let mut out = vec![];
-    if s.lists.is_empty() {
-        out.push(format!("servicen «{name}» har ingen lister"));
+    if s.lists.is_empty() && s.previews.is_empty() {
+        out.push(format!("servicen «{name}» har hverken lister eller previews"));
     }
     for (k, l) in &s.lists {
         let at = format!("«{name}:{k}»");
@@ -85,11 +91,14 @@ pub fn check(name: &str, s: &ServiceDef) -> Vec<String> {
             }
         }
     }
+    for (k, p) in &s.previews {
+        out.extend(crate::previews::check(&format!("«{name}:{k}»"), p));
+    }
     out
 }
 
 /// Erstatter `${NAVN}` med miljøvariabler. Fejler med navnet på den første, der mangler.
-fn interpolate(s: &str, env: &dyn Fn(&str) -> Option<String>) -> Result<String, String> {
+pub(crate) fn interpolate(s: &str, env: &dyn Fn(&str) -> Option<String>) -> Result<String, String> {
     let mut out = String::new();
     let mut rest = s;
     while let Some(i) = rest.find("${") {
@@ -178,6 +187,8 @@ pub struct OptionsCache {
     /// `Err` hvis klienten ikke kunne laves (fx ingen CA-certifikater). Så bruges reservelisterne.
     client: Result<reqwest::Client, String>,
     entries: Mutex<HashMap<String, Entry>>,
+    /// Udsnit til editoren, se `previews.rs`.
+    pub(crate) previews: Mutex<HashMap<String, crate::previews::Entry>>,
     env: Box<dyn Fn(&str) -> Option<String> + Send + Sync>,
 }
 
@@ -191,7 +202,7 @@ impl OptionsCache {
             tracing::error!("kan ikke hente fra services, bruger reservelister: {e}");
             format!("http-klienten kunne ikke startes: {e}")
         });
-        OptionsCache { client, entries: Mutex::new(HashMap::new()), env: Box::new(env) }
+        OptionsCache { client, entries: Mutex::new(HashMap::new()), previews: Mutex::new(HashMap::new()), env: Box::new(env) }
     }
 
     fn snapshot(&self, key: &str, status: OptionStatus, error: Option<String>) -> OptionList {
@@ -250,10 +261,18 @@ impl OptionsCache {
     }
 
     async fn fetch(&self, name: &str, svc: &ServiceDef, list: &ListDef) -> Result<Vec<OptionItem>, String> {
+        let body = self.get_json(name, svc, &list.path, &[]).await?;
+        parse(list, &body)
+    }
+
+    /// Henter JSON fra en service. Fejlen er en kort forklaring til redaktøren.
+    pub(crate) async fn get_json(&self, name: &str, svc: &ServiceDef, path: &str, query: &[(String, String)]) -> Result<Value, String> {
         let not_set = |var: String| format!("«{name}» er ikke sat op ({var} mangler)");
         let base = interpolate(&svc.base_url, &*self.env).map_err(not_set)?;
         let client = self.client.as_ref().map_err(Clone::clone)?;
-        let mut req = client.get(format!("{}{}", base.trim_end_matches('/'), list.path));
+        let url = reqwest::Url::parse_with_params(&format!("{}{}", base.trim_end_matches('/'), path), query)
+            .map_err(|_| format!("«{name}» har en ugyldig adresse"))?;
+        let mut req = client.get(url);
         for (k, v) in &svc.headers {
             req = req.header(k, interpolate(v, &*self.env).map_err(not_set)?);
         }
@@ -267,8 +286,7 @@ impl OptionsCache {
         if !res.status().is_success() {
             return Err(format!("«{name}» svarede {}", res.status()));
         }
-        let body: Value = res.json().await.map_err(|_| format!("«{name}» svarede ikke med JSON"))?;
-        parse(list, &body)
+        res.json().await.map_err(|_| format!("«{name}» svarede ikke med JSON"))
     }
 
     /// Alle lister, felterne i definitionerne henter fra, som værdier. Kun dem, der findes

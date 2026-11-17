@@ -24,6 +24,7 @@ Filerne læses ved hvert kald, så en ændring slår igennem med det samme. Det 
   - [Paletter](#paletter)
   - [Gruppe og liste](#gruppe-og-liste)
 - [Services](#services)
+  - [Udsnit af data](#udsnit-af-data)
 - [Validering](#validering)
 - [Ændringer i eksisterende definitioner](#ændringer-i-eksisterende-definitioner)
 - [Tjek før du committer](#tjek-før-du-committer)
@@ -111,6 +112,8 @@ En datasource-type beskriver en forespørgsel, sitet skal lave mod en anden serv
 | `label` | ja | Navnet i editoren. |
 | `description` | nej | En kort forklaring. |
 | `fields` | ja | Parametrene til forespørgslen. Felter af typen `datasource` er ikke tilladt her. |
+| `preview` | nej | Hvordan editoren henter et udsnit af dataene. Se [Udsnit af data](#udsnit-af-data). |
+| `previewNote` | nej | Tekst, der vises i stedet for et udsnit, fx `"Afhænger af den besøgende"`. Kan ikke bruges sammen med `preview`. |
 
 En datasource kan bruges på to måder:
 
@@ -446,6 +449,58 @@ Derfor er `options` påkrævet, også når `optionsFrom` er sat. Hold reservelis
 `GET /api/options/<service>/<liste>` giver `{ status, items, fetchedAt, error }`. Ved `fallback` er `items` `null`.
 
 Lokalt kører en mock af editorial og customer i docker-compose (mappen `mock/`). Stop den med `docker compose -p webmaster stop mock` for at se reservelisterne i brug.
+
+### Udsnit af data
+
+Når redaktøren redigerer en datasource, viser editoren op til 5 poster af det, den giver. Det gælder både i biblioteket og i et element, hvor datasourcen er delt eller lokal. Udsnittet er kun til orientering. Det påvirker aldrig gem, publicering eller validering.
+
+`services.json` beskriver, hvordan et udsnit læses, under `previews`:
+
+```json
+"editorial": {
+  "baseUrl": "${EDITORIAL_URL}",
+  "previews": {
+    "articles": { "path": "/articles", "items": "/data", "title": "/headline", "subtitle": "/section", "image": "/image/url", "url": "/url" }
+  }
+}
+```
+
+Datasource-typen peger på det og giver selv query-parametrene:
+
+```json
+{
+  "type": "articleQuery",
+  "preview": { "from": "editorial:articles", "query": { "section": "{section}", "tags": "{tags}", "limit": "5" } },
+  "fields": [ … ]
+}
+```
+
+Det giver fx `GET ${EDITORIAL_URL}/articles?limit=5&section=sport`. Flere datasource-typer kan dele ét udsnit med hver deres query.
+
+| Nøgle | Betydning |
+|---|---|
+| `previews.<navn>.path` | Stien efter `baseUrl`. Den kan ikke have `{felt}` eller `?`. |
+| `previews.<navn>.items` | JSON-pointer til listen i svaret. Udelad den, hvis svaret selv er listen. |
+| `previews.<navn>.title` | JSON-pointer til overskriften i hver post. Påkrævet. Poster uden overskrift springes over. |
+| `previews.<navn>.subtitle`, `image`, `url` | JSON-pointere til en undertekst, en billed-URL og postens adresse. Valgfri. |
+| `preview.from` | `"service:udsnit"` fra `previews`. |
+| `preview.query` | Query-parametre. `{felt}` erstattes med feltets værdi. Den bliver URL-kodet, og lister som `tags` og `multiselect` bliver kommasepareret. Fast tekst er tilladt, fx `"id:{ids}"`. |
+
+- Er et felt tomt eller skjult af `showWhen`, udelades parameteren. Feltets `default` bruges, hvis det ikke har en værdi.
+- Er et påkrævet felt tomt, hentes der intet. Editoren skriver "Udfyld «…» for at se et udsnit".
+- `{felt}` skal være et felt på typen. Felter af typen `group`, `list`, `datasource` og `richtext` kan ikke bruges.
+
+| Status | Betydning |
+|---|---|
+| `fresh` | Hentet inden for de seneste 60 sekunder. |
+| `stale` | Servicen svarer ikke. Det seneste udsnit med de samme felter vises. |
+| `unavailable` | Servicen svarer ikke eller er ikke sat op, og der er intet gammelt udsnit. |
+| `incomplete` | Et påkrævet felt er tomt. |
+| `none` | Typen har intet `preview`. `message` er `previewNote` eller en standardtekst. |
+
+Kaldet har samme timeout på 3 sekunder og samme pause på 30 sekunder efter en fejl som valgmulighederne. Editoren sender `POST /api/datasources/preview` med `{ "type": "articleQuery", "fields": { … } }`. Svaret er altid 200 med `{ status, items, fetchedAt, message }`; kun en ukendt type giver 404. Editoren venter et halvt sekund, efter man er holdt op med at skrive, før den henter igen.
+
+Mocken svarer altid med de samme 10 artikler fra `mock/editorial/articles.json`, uanset query.
 
 ## Validering
 

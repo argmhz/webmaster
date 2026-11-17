@@ -1,3 +1,4 @@
+import { DatasourcePreview } from "./DatasourcePreview";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { api, type Doc, type Issue, type RefKind } from "./api";
@@ -223,6 +224,11 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
           </div>
         </section>
         <section class="lib-side">
+          <Show when={p.kind === "datasource" && p.doc.type}>
+            <div class="group">
+              <DatasourcePreview type={p.doc.type!} fields={() => state.draft.fields} />
+            </div>
+          </Show>
           <Show when={p.kind !== "global"}>
           <div class="group">
             <div class="group-h">Bruges af</div>

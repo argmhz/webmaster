@@ -1,5 +1,6 @@
 {
   "type": "mostRead", "source": "editorial", "label": "Mest læste",
+  "preview": {"from": "editorial:articles", "query": {"sort": "mostRead", "period": "{period}", "section": "{section}", "limit": "5"}},
   "fields": [
     { "key": "period", "type": "select", "label": "Periode", "options": [{ "value": "1h", "label": "Sidste time" }, { "value": "24h", "label": "Sidste døgn" }, { "value": "7d", "label": "Sidste uge" }], "default": "24h" },
     { "key": "section", "type": "select", "label": "Sektion", "optionsFrom": "editorial:sections", "options": ["indland", "udland", "sport", "kultur", "erhverv"] },

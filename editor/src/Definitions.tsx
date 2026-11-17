@@ -111,7 +111,16 @@ function ServiceStatus() {
       return out;
     };
     return Object.entries(d.services).flatMap(([name, svc]) =>
-      Object.keys(svc!.lists).map((list) => ({ key: `${name}:${list}`, users: users(`${name}:${list}`) })),
+      Object.keys(svc!.lists ?? {}).map((list) => ({ key: `${name}:${list}`, users: users(`${name}:${list}`) })),
+    );
+  };
+  const previews = () => {
+    const d = defs()!;
+    return Object.entries(d.services).flatMap(([name, svc]) =>
+      Object.entries(svc!.previews ?? {}).map(([k, pv]) => {
+        const key = `${name}:${k}`;
+        return { key, path: pv!.path, users: d.datasources.filter((t) => t.preview?.from === key).map((t) => t.type) };
+      }),
     );
   };
   return (
@@ -134,6 +143,26 @@ function ServiceStatus() {
           </For>
         </tbody>
       </table>
+      <Show when={previews().length}>
+        <p class="help">
+          Udsnit (<span class="mono">previews</span>) vises i editoren, når man redigerer en datasource. De er kun til
+          orientering og hentes, når de skal bruges.
+        </p>
+        <table>
+          <thead><tr><th>Udsnit</th><th>Sti</th><th>Bruges af</th></tr></thead>
+          <tbody>
+            <For each={previews()}>
+              {(r) => (
+                <tr>
+                  <td class="mono">{r.key}</td>
+                  <td class="mono muted">{r.path}</td>
+                  <td class="mono muted">{r.users.join(", ") || "ingen"}</td>
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
+      </Show>
     </div>
   );
 }

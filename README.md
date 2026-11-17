@@ -12,7 +12,7 @@ docker compose -p webmaster up --build -d
 
 - Editor og API: http://localhost:8088
 - Postgres: `localhost:5433` (bruger, kodeord og database hedder alle `webmaster`)
-- Mock af editorial og customer: http://localhost:8090. Appen virker også uden den (se [Services](definitions/README.md#services)).
+- Mock af editorial og customer: http://localhost:8090. Den giver valgmuligheder og udsnit af datasources (artikler). Appen virker også uden den (se [Services](definitions/README.md#services)).
 
 En tom database fyldes automatisk med eksempeldata fra `seed.json`. Start forfra med:
 
