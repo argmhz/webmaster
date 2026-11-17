@@ -1,9 +1,9 @@
 import { For, Match, Show, Switch } from "solid-js";
-import type { FieldDef } from "./api";
+import type { FieldDef, Issue } from "./api";
 import { DatasourceField } from "./DatasourceField";
 
 /** Én renderer pr. felttype. Formularer bygges ud fra JSON-definitionerne. */
-export function FieldEditor(p: { def: FieldDef; value: any; onChange: (v: any) => void; idPrefix: string }) {
+export function FieldEditor(p: { def: FieldDef; value: any; onChange: (v: any) => void; idPrefix: string; issue?: Issue }) {
   const id = () => `${p.idPrefix}-${p.def.key}`;
   const Label = () => (
     <label class="flabel" for={id()}>
@@ -21,7 +21,7 @@ export function FieldEditor(p: { def: FieldDef; value: any; onChange: (v: any) =
   );
 
   return (
-    <div class="field">
+    <div class="field" classList={{ invalid: p.issue?.level === "error", warned: p.issue?.level === "warning" }}>
       <Switch fallback={<><Label />{input("text")}</>}>
         <Match when={p.def.type === "boolean"}>
           <label class="check">
@@ -104,6 +104,9 @@ export function FieldEditor(p: { def: FieldDef; value: any; onChange: (v: any) =
       </Show>
       <Show when={p.def.help}>
         <div class="help">{p.def.help}</div>
+      </Show>
+      <Show when={p.issue}>
+        <div class="field-issue" role="alert">{p.issue!.message}</div>
       </Show>
     </div>
   );

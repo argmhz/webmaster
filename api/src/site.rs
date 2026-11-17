@@ -2,7 +2,7 @@
 //! datasources og afgør synlighed ud fra schedules og access.
 
 use crate::{
-    defs,
+    defs::{self, Defs},
     error::{AppError, R},
     refs, AppState,
 };
@@ -61,7 +61,7 @@ pub struct PageQ {
 }
 
 pub async fn page(State(s): State<AppState>, Query(q): Query<PageQ>) -> R<Json<Value>> {
-    let all_defs = defs::load(&s.defs_dir)?;
+    let all_defs = defs::load(&s.defs_dir);
     let nodes: Vec<NodeRow> = sqlx::query_as("select id, parent_id, slug from nodes").fetch_all(&s.db).await?;
     let paths = compute_paths(&nodes);
     let want = normalize(&q.path);
@@ -92,7 +92,7 @@ pub async fn page(State(s): State<AppState>, Query(q): Query<PageQ>) -> R<Json<V
         .fetch_optional(&s.db)
         .await?;
         let Some((d, v, at)) = row else {
-            return Err(AppError(StatusCode::NOT_FOUND, "Siden er ikke publiceret endnu".into()));
+            return Err(AppError(StatusCode::NOT_FOUND, "Siden er ikke publiceret endnu".into(), None));
         };
         (d, Some(v), Some(at))
     };
@@ -115,11 +115,7 @@ pub async fn page(State(s): State<AppState>, Query(q): Query<PageQ>) -> R<Json<V
         let fields = d.get("fields").cloned().unwrap_or_else(|| json!({}));
         match kind.as_str() {
             "datasource" => {
-                let source = ty
-                    .as_deref()
-                    .and_then(|t| defs::find_type(&all_defs, "datasource", t))
-                    .and_then(|t| t.get("source").cloned())
-                    .unwrap_or(Value::Null);
+                let source = ty.as_deref().and_then(|t| all_defs.find_type("datasource", t)).and_then(|t| t.source.clone());
                 ds.insert(rid, json!({ "type": ty, "source": source, "name": name, "fields": fields }));
             }
             "schedule" => {
@@ -159,18 +155,17 @@ pub async fn page(State(s): State<AppState>, Query(q): Query<PageQ>) -> R<Json<V
 
 /// Lokale datasources (`{ "inline": { type, fields } }`) får `source` fra
 /// definitionen, så sitet kan resolve dem på samme måde som delte.
-fn enrich_inline(v: &mut Value, all_defs: &Value) {
+fn enrich_inline(v: &mut Value, all_defs: &Defs) {
     match v {
         Value::Object(m) => {
             if let Some(Value::Object(inline)) = m.get_mut("inline") {
                 let source = inline
                     .get("type")
                     .and_then(|t| t.as_str())
-                    .and_then(|t| defs::find_type(all_defs, "datasource", t))
-                    .and_then(|d| d.get("source"))
-                    .cloned();
+                    .and_then(|t| all_defs.find_type("datasource", t))
+                    .and_then(|d| d.source.clone());
                 if let Some(source) = source {
-                    inline.insert("source".into(), source);
+                    inline.insert("source".into(), Value::String(source));
                 }
             }
             for (_, x) in m.iter_mut() {
@@ -188,9 +183,7 @@ fn enrich_inline(v: &mut Value, all_defs: &Value) {
 
 /// Omdanner `columns: [[el, el], [el]]` til `columns: [{ width, elements }]`
 /// og sætter elementtypens version på hvert element.
-fn sections_out(data: &Value, all_defs: &Value) -> Vec<Value> {
-    let layouts = all_defs["layouts"].as_array().cloned().unwrap_or_default();
-    let elements = all_defs["elements"].as_array().cloned().unwrap_or_default();
+fn sections_out(data: &Value, all_defs: &Defs) -> Vec<Value> {
     data["sections"]
         .as_array()
         .cloned()
@@ -199,11 +192,9 @@ fn sections_out(data: &Value, all_defs: &Value) -> Vec<Value> {
         .filter(|s| s.is_object())
         .map(|mut s| {
             let layout = s["layout"].as_str().unwrap_or("1").to_string();
-            let widths: Vec<i64> = layouts
-                .iter()
-                .find(|l| l["layout"].as_str() == Some(layout.as_str()))
-                .and_then(|l| l["columns"].as_array())
-                .map(|c| c.iter().map(|x| x["width"].as_i64().unwrap_or(12)).collect())
+            let widths: Vec<u32> = all_defs
+                .layout(&layout)
+                .map(|l| l.columns.iter().map(|c| c.width).collect())
                 .unwrap_or_else(|| vec![12]);
             let cols = s["columns"].as_array().cloned().unwrap_or_default();
             let out: Vec<Value> = widths
@@ -217,10 +208,7 @@ fn sections_out(data: &Value, all_defs: &Value) -> Vec<Value> {
                         .unwrap_or_default()
                         .into_iter()
                         .map(|mut e| {
-                            let v = e["type"]
-                                .as_str()
-                                .and_then(|t| elements.iter().find(|d| d["type"].as_str() == Some(t)))
-                                .and_then(|d| d.get("version").cloned());
+                            let v = e["type"].as_str().and_then(|t| all_defs.element(t)).map(|d| json!(d.version));
                             if let (Some(v), Some(obj)) = (v, e.as_object_mut()) {
                                 obj.insert("version".into(), v);
                             }

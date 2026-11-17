@@ -20,8 +20,8 @@
     { "id": "sch_weekend", "kind": "schedule", "type": "recurring", "name": "Weekend",
       "draft": { "fields": { "days": ["lør", "søn"], "from": "00:00", "to": "23:59", "timezone": "Europe/Copenhagen" } } },
 
-    { "id": "acc_abonnent", "kind": "access", "type": "subscription", "name": "Abonnenter",
-      "draft": { "fields": { "products": ["digital", "premium"] } } },
+    { "id": "acc_abonnent", "kind": "access", "type": "entitlement", "name": "Abonnenter",
+      "draft": { "fields": { "entitlements": ["BOID"] } } },
     { "id": "acc_logget_ind", "kind": "access", "type": "loginState", "name": "Logget ind",
       "draft": { "fields": { "state": "loggedIn" } } },
     { "id": "acc_anonym", "kind": "access", "type": "loginState", "name": "Ikke logget ind",

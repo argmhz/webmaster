@@ -309,3 +309,37 @@ td input:hover, td select:hover { border-color: var(--border); }
   .lib-body { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ---------- validering ---------- */
+.issues { position: relative; }
+.issues-ok { color: var(--ok); font-size: 12px; }
+.issues-btn { font-size: 12px; }
+.issues-btn.err { color: var(--danger); border-color: rgba(255,92,108,.5); }
+.issues-btn.warn { color: var(--warn); border-color: rgba(242,184,75,.5); }
+.issues-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; width: min(440px, 90vw);
+  max-height: 60vh; overflow: auto; background: var(--panel); border: 1px solid var(--border-hi);
+  border-radius: 6px; box-shadow: 0 8px 28px rgba(0,0,0,.4);
+}
+.issues-h { padding: 8px 10px; color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--border); }
+.issues-pop ul { list-style: none; margin: 0; padding: 4px; }
+.issue {
+  display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; width: 100%; text-align: left;
+  background: none; border: 0; border-radius: 4px; padding: 6px; color: inherit;
+}
+.issue:hover { background: var(--panel-2); }
+.issue .lvl { grid-row: span 2; font-size: 10px; color: var(--warn); padding-top: 2px; }
+.issue.err .lvl { color: var(--danger); }
+.issue .loc { color: var(--muted); font-size: 11px; }
+.issue .msg { min-width: 0; }
+.field.invalid input, .field.invalid select, .field.invalid textarea { border-color: var(--danger); }
+.field.warned input, .field.warned select, .field.warned textarea { border-color: var(--warn); }
+.field-issue { font-size: 11px; color: var(--danger); }
+.field.warned .field-issue { color: var(--warn); }
+.el.has-err, .sec.has-err > .sec-h { box-shadow: inset 3px 0 0 var(--danger); }
+.el.has-warn, .sec.has-warn > .sec-h { box-shadow: inset 3px 0 0 var(--warn); }
+.def-problems { padding: 6px 4px 10px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.def-problems ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
+.def-problems li { display: grid; gap: 1px; color: var(--danger); font-size: 11px; }
+.def-problems li .mono { color: var(--text); }
+.tabs .tag, .files .tag { margin-left: 5px; }

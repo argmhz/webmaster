@@ -1,65 +1,38 @@
 // Typer og kald mod webmaster-API'et.
 
-export interface FieldDef {
-  key: string;
-  type: string;
-  label?: string;
-  required?: boolean;
-  options?: string[];
-  optionsFrom?: string;
-  default?: unknown;
-  max?: number;
-  help?: string;
-  accepts?: string[];
-}
-export interface ElementDef { type: string; version: number; label: string; fields: FieldDef[] }
-export interface LayoutDef { layout: string; label: string; columns: { width: number }[] }
-export interface RefTypeDef { type: string; label: string; source?: string; description?: string; fields: FieldDef[] }
-export interface Defs {
-  page: { fields: FieldDef[] };
-  section: { fields: FieldDef[] };
-  layouts: LayoutDef[];
-  elements: ElementDef[];
-  datasources: RefTypeDef[];
-  schedules: RefTypeDef[];
-  access: RefTypeDef[];
-}
+// Typerne for definitioner, dokumenter, træ, redirects og valideringsfejl genereres
+// fra Rust med ts-rs (kør `cargo test` i api/). Rediger ikke filerne i gen/.
+import type { Defs } from "./gen/Defs";
+import type { Doc } from "./gen/Doc";
+import type { Issue } from "./gen/Issue";
+import type { Kind } from "./gen/Kind";
+import type { Redirect } from "./gen/Redirect";
+import type { TreeNode } from "./gen/TreeNode";
+import type { UsedBy } from "./gen/UsedBy";
+import type { Version } from "./gen/Version";
 
-export type RefKind = "datasource" | "schedule" | "access";
-export type Kind = "page" | RefKind;
+export type { Defs, Doc, Issue, Kind, Redirect, TreeNode, UsedBy, Version };
+export type { DefProblem } from "./gen/DefProblem";
+export type { ElementDef } from "./gen/ElementDef";
+export type { FieldDef } from "./gen/FieldDef";
+export type { FieldType } from "./gen/FieldType";
+export type { LayoutDef } from "./gen/LayoutDef";
+export type { RefTypeDef } from "./gen/RefTypeDef";
 
-export interface TreeNode {
-  id: string;
-  parent_id: string | null;
-  slug: string;
-  title: string;
-  sort: number;
-  published_version: number | null;
-  changed: boolean | null;
-}
-
-export interface Doc {
-  id: string;
-  kind: Kind;
-  type: string | null;
-  name: string;
-  updated_at: string;
-  published_version: number | null;
-  published_at: string | null;
-  changed: boolean | null;
-  used_by: number;
-  draft?: any;
-}
-
-export interface Version { id: number; name: string; published_at: string; published_by: string }
-export interface Redirect { from: string; to: string; status: number }
-export interface UsedBy { id: string; kind: Kind; name: string }
+export type RefKind = Exclude<Kind, "page">;
 
 // Sidens kladde
 export interface Vis { schedules: string[]; access: string[] }
 export interface El extends Vis { id: string; type: string; fields: Record<string, any> }
 export interface Sec extends Vis { id: string; layout: string; settings: Record<string, any>; columns: El[][] }
 export interface PageDraft extends Vis { fields: Record<string, any>; sections: Sec[] }
+
+/** Fejl fra API'et. `issues` er med, når en kladde ikke kan publiceres. */
+export class ApiError extends Error {
+  constructor(message: string, readonly issues?: Issue[]) {
+    super(message);
+  }
+}
 
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   const r = await fetch("/api" + url, {
@@ -69,12 +42,15 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   });
   if (!r.ok) {
     let msg = `${r.status} ${r.statusText}`;
+    let issues: Issue[] | undefined;
     try {
-      msg = (await r.json()).error ?? msg;
+      const body = await r.json();
+      msg = body.error ?? msg;
+      issues = body.issues;
     } catch {
       /* ikke JSON */
     }
-    throw new Error(msg);
+    throw new ApiError(msg, issues);
   }
   return (r.status === 204 ? undefined : await r.json()) as T;
 }
@@ -96,6 +72,7 @@ export const api = {
   publish: (id: string) => req<Doc>("POST", `/documents/${id}/publish`),
   versions: (id: string) => req<Version[]>("GET", `/documents/${id}/versions`),
   restore: (id: string, version: number) => req<Doc>("POST", `/documents/${id}/restore/${version}`),
+  issues: (id: string) => req<Issue[]>("GET", `/documents/${id}/issues`),
   usedBy: (id: string) => req<UsedBy[]>("GET", `/documents/${id}/used-by`),
 
   redirects: () => req<Redirect[]>("GET", "/redirects"),

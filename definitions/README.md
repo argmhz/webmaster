@@ -1,0 +1,266 @@
+# Manual til definitions/
+
+Mappen beskriver, hvad redaktørerne kan bygge i webmasteren: hvilke elementer der findes, hvilke felter de har, og hvilke datasources, schedules og access-regler der kan oprettes. Udviklerne ejer filerne i git. Editoren bygger sine formularer ud fra dem, og API'et validerer kladderne mod dem, før de publiceres.
+
+Filerne læses ved hvert kald, så en ændring slår igennem med det samme. Det kræver ingen genstart.
+
+## Indhold
+
+- [Mapper og filer](#mapper-og-filer)
+- [Elementer](#elementer)
+- [Datasources](#datasources)
+- [Schedules](#schedules)
+- [Access](#access)
+- [Side og sektion](#side-og-sektion)
+- [Layouts](#layouts)
+- [Felter](#felter)
+- [Felttyper](#felttyper)
+- [Validering](#validering)
+- [Ændringer i eksisterende definitioner](#ændringer-i-eksisterende-definitioner)
+- [Tjek før du committer](#tjek-før-du-committer)
+
+## Mapper og filer
+
+| Sti | Hvad | Format |
+|---|---|---|
+| `page.json` | Sidens egne felter (titel, meta osv.) | [Side og sektion](#side-og-sektion) |
+| `section.json` | Felter på hver sektion (baggrund, luft osv.) | [Side og sektion](#side-og-sektion) |
+| `layouts.json` | Kolonnelayouts, en sektion kan have | [Layouts](#layouts) |
+| `elements/*.json` | Én fil pr. elementtype | [Elementer](#elementer) |
+| `datasources/*.json` | Én fil pr. datasource-type | [Datasources](#datasources) |
+| `schedules/*.json` | Én fil pr. schedule-type | [Schedules](#schedules) |
+| `access/*.json` | Én fil pr. access-type | [Access](#access) |
+
+Kun filer, der ender på `.json`, bliver læst. Filnavnet er ligegyldigt for systemet, men brug typenavnet, fx `elements/articleList.json` til typen `articleList`. Det er `type` inde i filen, der gælder.
+
+Filerne er streng JSON. Kommentarer og kommaer efter sidste element er ikke tilladt, og ukendte nøgler giver en fejl. Det fanger stavefejl som `"requried"`.
+
+## Elementer
+
+Et element er en byggeklods, redaktøren kan lægge i en kolonne på en side.
+
+```json
+{
+  "type": "articleList",
+  "version": 1,
+  "label": "Artikelliste",
+  "description": "Viser en liste af artikler fra en datasource.",
+  "fields": [
+    { "key": "title", "type": "text", "label": "Overskrift", "required": true },
+    { "key": "articles", "type": "datasource", "label": "Artikler", "required": true,
+      "accepts": ["articleQuery", "articlePicks", "mostRead"] }
+  ]
+}
+```
+
+| Nøgle | Påkrævet | Betydning |
+|---|---|---|
+| `type` | ja | Unikt navn. Bogstaver, tal og `_`, og det skal starte med et bogstav. Brug camelCase. Gemmes i siderne, så det må ikke ændres bagefter. |
+| `version` | ja | Heltal ≥ 1. Sendes med hvert element i sitets API, så sitet kan håndtere gamle og nye udgaver. Tæl op, når felterne ændres på en måde, sitet skal kende til. |
+| `label` | ja | Navnet, redaktøren ser. |
+| `description` | nej | En kort forklaring. |
+| `fields` | ja | Elementets [felter](#felter). Må gerne være tom (`[]`). |
+
+Sitet får elementet sådan her i `GET /api/site/page`:
+
+```json
+{ "id": "el_f3", "type": "articleList", "version": 1,
+  "fields": { "title": "Seneste nyt", "articles": { "ref": "ds_seneste" } },
+  "schedules": [], "access": [] }
+```
+
+## Datasources
+
+En datasource-type beskriver en forespørgsel, sitet skal lave mod en anden service. Webmasteren gemmer kun opsætningen, og sitet henter selv dataene.
+
+```json
+{
+  "type": "mostRead",
+  "source": "editorial",
+  "label": "Mest læste",
+  "description": "De mest læste artikler i en periode.",
+  "fields": [
+    { "key": "period", "type": "select", "label": "Periode", "options": ["1h", "24h", "7d"], "default": "24h" },
+    { "key": "limit", "type": "number", "label": "Antal", "default": 5, "max": 20 }
+  ]
+}
+```
+
+| Nøgle | Påkrævet | Betydning |
+|---|---|---|
+| `type` | ja | Unikt navn, som for elementer. Det er også det, `accepts` på et datasource-felt henviser til. |
+| `source` | ja | Den service, sitet skal hente fra, fx `editorial` eller `customer`. Sendes med til sitet. |
+| `label` | ja | Navnet i editoren. |
+| `description` | nej | En kort forklaring. |
+| `fields` | ja | Parametrene til forespørgslen. Felter af typen `datasource` er ikke tilladt her. |
+
+En datasource kan bruges på to måder:
+
+- **Delt**: Den oprettes i biblioteket under Datasources og kan bruges af mange elementer. I siden står `{ "ref": "ds_…" }`, og sitet finder den i `refs.datasources`.
+- **Lokal**: Den hører kun til ét element og står direkte i siden som `{ "inline": { "type": "mostRead", "fields": { … } } }`. Sitet får `source` med inde i `inline`.
+
+## Schedules
+
+En schedule afgør, hvornår noget er synligt. Den kan sættes på side, sektion og element. Flere schedules på samme ting gælder med **ELLER**, så tingen er synlig, hvis bare én af dem passer.
+
+```json
+{
+  "type": "window",
+  "label": "Tidsrum",
+  "description": "Synlig fra et tidspunkt til et andet.",
+  "fields": [
+    { "key": "from", "type": "datetime", "label": "Fra" },
+    { "key": "to", "type": "datetime", "label": "Til" }
+  ]
+}
+```
+
+Nøglerne er de samme som for datasources, bare uden `source`. Det er sitet, der fortolker felterne. Når du tilføjer en ny schedule-type, skal sitet derfor også lære den.
+
+## Access
+
+En access-regel afgør, hvem der kan se noget. Den kan sættes på side, sektion og element. Flere regler på samme ting gælder med **OG**, så alle skal være opfyldt.
+
+```json
+{
+  "type": "loginState",
+  "label": "Login-status",
+  "fields": [
+    { "key": "state", "type": "select", "label": "Bruger er", "options": ["loggedIn", "anonymous"], "default": "loggedIn" }
+  ]
+}
+```
+
+Nøglerne er de samme som for schedules. Sitet fortolker reglen og skal kende typen.
+
+Webmasteren ved ikke, hvad felterne betyder. Den ved for eksempel ikke, om `entitlements` betyder "mindst én af" eller "alle". Skriv det i `description`, så redaktøren kan se det.
+
+## Side og sektion
+
+`page.json` og `section.json` har kun `fields`. `type` må gerne stå der, men bruges ikke.
+
+```json
+{
+  "type": "section",
+  "fields": [
+    { "key": "background", "type": "select", "label": "Baggrund", "options": ["none", "light", "dark", "brand"], "default": "none" }
+  ]
+}
+```
+
+Sidens felter står i `fields` på siden i sitets API, og sektionens står i `settings`.
+
+## Layouts
+
+`layouts.json` er en liste over de kolonnelayouts, en sektion kan have. Gridet har 12 kolonner, og bredderne i et layout skal tilsammen give 12.
+
+```json
+[
+  { "layout": "1",   "label": "1 kolonne",  "columns": [{ "width": 12 }] },
+  { "layout": "2-1", "label": "2/3 + 1/3",  "columns": [{ "width": 8 }, { "width": 4 }] }
+]
+```
+
+| Nøgle | Betydning |
+|---|---|
+| `layout` | Unik nøgle. Gemmes i siderne, så den må ikke ændres bagefter. |
+| `label` | Navnet i editoren. |
+| `columns` | Kolonnerne fra venstre mod højre, hver med en `width` (1–12). |
+
+Hvis du fjerner kolonner fra et layout, der er i brug, bliver elementerne i de overskydende kolonner ikke vist. Valideringen melder det som en fejl på de sider, det gælder.
+
+## Felter
+
+Et felt er en linje i `fields`. Alle felter har `key` og `type`. Resten afhænger af typen.
+
+| Nøgle | Gælder for | Betydning |
+|---|---|---|
+| `key` | alle | Navnet på værdien i JSON. Starter med et bogstav og indeholder kun bogstaver, tal og `_`. Skal være unik i filen. |
+| `type` | alle | En af [felttyperne](#felttyper). |
+| `label` | alle | Teksten over feltet. Uden den vises `key`. |
+| `help` | alle | En hjælpetekst under feltet. |
+| `required` | alle | `true` betyder, at feltet skal udfyldes, før dokumentet kan publiceres. Tom tekst og en tom liste tæller som ikke udfyldt. |
+| `default` | alle undtagen `datasource` | Værdien, der sættes, når elementet eller dokumentet oprettes. Den skal være gyldig for feltet. Ændrer du den senere, påvirker det ikke elementer, der allerede er oprettet. |
+| `options` | `select`, `multiselect` (påkrævet) | De tilladte værdier. |
+| `optionsFrom` | `select`, `multiselect` | Henter valgmulighederne fra en anden service, skrevet som `"service:liste"`, fx `"editorial:sections"`. Se note nedenfor. |
+| `max` | `number` | Den største tilladte værdi. |
+| `accepts` | `datasource` (påkrævet) | De datasource-typer, feltet tager imod. |
+
+> **Om `optionsFrom`.** Den henter ikke noget endnu. Indtil den gør, viser editoren `options`, og valideringen accepterer også andre værdier end dem i `options`, fordi listen fra servicen kan være længere.
+
+## Felttyper
+
+| Type | Editor | Værdi i JSON | Valideres |
+|---|---|---|---|
+| `text` | Tekstfelt på én linje | `"tekst"` | at det er tekst |
+| `richtext` | Tekstfelt over flere linjer | `"tekst"` | at det er tekst |
+| `number` | Talfelt | `12` | at det er et tal, og at det ikke er over `max` |
+| `boolean` | Afkrydsningsfelt | `true` / `false` | at det er sandt eller falsk |
+| `select` | Dropdown | `"newest"` | at værdien findes i `options` |
+| `multiselect` | Chips, der slås til og fra | `["man", "tir"]` | at det er en liste, at alle værdier findes i `options`, og at ingen er valgt to gange |
+| `datetime` | Dato og tid | `"2026-11-18T18:00"` | formatet `ÅÅÅÅ-MM-DDTTT:MM` (sekunder må gerne være med). Uden tidszone. |
+| `time` | Klokkeslæt | `"06:00"` | formatet `TT:MM` |
+| `link` | Tekstfelt | `"/nyheder"` | at det starter med `/`, `#`, `https://`, `http://`, `mailto:` eller `tel:` |
+| `image` | Tekstfelt (mediearkivet er ikke koblet på endnu) | `"/img/valg.jpg"` | at det er tekst |
+| `datasource` | Vælg en delt datasource eller opret en lokal | `{ "ref": "ds_…" }` eller `{ "inline": { "type": "…", "fields": { … } } }` | at den findes, er af en type i `accepts` og er publiceret. En lokal datasource får sine egne felter valideret. |
+
+En ukendt felttype er en fejl i definitionen, og filen bliver sprunget over. Hvis du har brug for en ny type, skal den laves i både API'et (`api/src/defs.rs` og `api/src/validate.rs`) og editoren (`editor/src/FieldEditor.tsx`).
+
+## Validering
+
+Det tjekkes to steder.
+
+**Definitionerne.** De tjekkes, hver gang de læses. Filer med fejl springes over, og fejlene bliver:
+
+- logget som advarsler, når API'et starter,
+- vist under fanen **Definitioner** i editoren med et rødt tal på fanen,
+- sendt med i `problems` i `GET /api/definitions`.
+
+Det her bliver tjekket:
+
+- at filen er gyldig JSON og ikke har ukendte nøgler,
+- at `type`, `key` og `layout` har gyldige navne og ikke findes to gange,
+- at `select` og `multiselect` har `options`,
+- at `options`, `optionsFrom`, `max` og `accepts` kun bruges på de typer, de hører til,
+- at `accepts` kun nævner datasource-typer, der findes,
+- at `default` er gyldig for feltet,
+- at datasource-typer har `source`, og at andre typer ikke har den,
+- at layouts har kolonner, og at bredderne giver 12.
+
+**Kladderne.** Kladder kan altid gemmes, men de bliver valideret mod definitionerne:
+
+- `GET /api/documents/:id/issues` giver listen over problemer.
+- `POST /api/documents/:id/publish` afviser med `422` og `{ error, issues }`, hvis der er fejl.
+- Editoren viser problemerne i værktøjslinjen, ved det enkelte felt og som en rød eller gul streg på sektioner og elementer.
+
+| Niveau | Eksempler | Blokerer publicering |
+|---|---|---|
+| `error` | Et påkrævet felt er tomt. En værdi er ugyldig. En element-, datasource-, schedule- eller access-type findes ikke længere. En reference peger på noget, der ikke findes eller ikke er publiceret. En datasource er af en type, feltet ikke tager imod. Elementer ligger i en kolonne, layoutet ikke har. | ja |
+| `warning` | Kladden har et felt, som ikke længere findes i definitionen. | nej |
+
+Hvert problem har `location` i klar tekst, fx `Sektion 2 › kolonne 1 › Artikelliste «Sport»`, og `section`, `element` og `field`, så editoren kan finde stedet.
+
+## Ændringer i eksisterende definitioner
+
+Sider og dokumenter gemmer kun `type` og `key`, ikke resten af definitionen. Det her sker, når du ændrer noget, der allerede er i brug:
+
+| Ændring | Konsekvens |
+|---|---|
+| Ny `label`, `help` eller `description` | Ingen. Det er kun tekst. |
+| Nyt felt uden `required` | Ingen. Gamle elementer har bare ikke værdien. |
+| Nyt felt med `required: true` | Sider med elementet kan ikke publiceres, før feltet er udfyldt. Overvej at tilføje feltet uden `required` først. |
+| Fjern et felt | Værdien bliver liggende i kladderne og giver en advarsel. Sitet får den stadig, indtil den er fjernet. |
+| Omdøb `key` | Svarer til at fjerne et felt og tilføje et nyt. Gamle værdier er ikke flyttet med. |
+| Fjern en værdi fra `options` | Elementer, der bruger værdien, får en fejl og skal rettes, før de kan publiceres igen. |
+| Omdøb eller slet `type` | Alt, der bruger typen, får en fejl. Det kan ikke publiceres, før det er fjernet eller skiftet. |
+| Gør `max` mindre | Værdier over den nye grænse giver en fejl. |
+
+Hvis en ændring betyder noget for sitet, så tæl elementets `version` op og lær sitet at håndtere begge versioner. Webmasteren migrerer ikke gamle elementer endnu.
+
+## Tjek før du committer
+
+```bash
+cd api && cargo test
+```
+
+Testene tjekker, at alle filer i `definitions/` er gyldige, og at `seed.json` kan publiceres med de nuværende definitioner. Samtidig skriver de TypeScript-typerne i `editor/src/gen/` igen. Hvis du har ændret strukturerne i Rust, så commit de ændrede filer i `gen/` sammen med ændringerne.

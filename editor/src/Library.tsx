@@ -1,7 +1,8 @@
 import { createResource, createSignal, For, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
-import { api, type Doc, type RefKind } from "./api";
+import { api, type Doc, type Issue, type RefKind } from "./api";
 import { FieldEditor } from "./FieldEditor";
+import { errorsOf, fieldIssue, IssueSummary, issuesFromError } from "./Issues";
 import { KindIcon } from "./icons";
 import {
   createAutosave, defaultsFor, errMsg, KIND, library, navigate, refType, refTypes, refreshLibrary, route, status, toast,
@@ -112,9 +113,19 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
     draft: { fields: {}, ...(p.doc.draft ?? {}) },
   });
   const [meta, setMeta] = createSignal(p.doc);
+  const [issues, setIssues] = createSignal<Issue[]>([]);
+  const loadIssues = async () => {
+    try {
+      setIssues(await api.issues(p.doc.id));
+    } catch {
+      /* listen er kun en hjælp */
+    }
+  };
+  loadIssues();
   const saver = createAutosave(p.doc.id, () => ({ name: state.name, draft: unwrap(state.draft) }), (m) => {
     setMeta(m);
     refreshLibrary();
+    loadIssues();
   });
   const [usedBy] = createResource(() => p.doc.id, api.usedBy);
   const st = () => status(meta());
@@ -126,6 +137,8 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
       await refreshLibrary();
       toast(`«${state.name}» er publiceret`);
     } catch (e) {
+      const list = issuesFromError(e);
+      if (list) setIssues(list);
       toast(errMsg(e), true);
     }
   };
@@ -153,8 +166,16 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
           <span class="tag">kilde: {def()!.source}</span>
         </Show>
         <span class="spacer" />
+        <IssueSummary issues={issues()} onPick={(i) => i.field && document.getElementById(`${p.doc.id}-${i.field}`)?.focus()} />
         <span class={`status ${st().cls}`}><span class={`dot ${st().cls}`} />{st().label}</span>
-        <button class="primary" disabled={meta().published_version != null && !meta().changed} onClick={publish}>Publicér</button>
+        <button
+          class="primary"
+          disabled={(meta().published_version != null && !meta().changed) || errorsOf(issues()).length > 0}
+          title={errorsOf(issues()).length ? "Ret fejlene før den kan publiceres" : ""}
+          onClick={publish}
+        >
+          Publicér
+        </button>
       </div>
       <div class="lib-body">
         <section class="lib-form">
@@ -175,6 +196,7 @@ function RefDocForm(p: { doc: Doc; kind: RefKind }) {
                 <FieldEditor
                   def={fd}
                   idPrefix={p.doc.id}
+                  issue={fieldIssue(issues(), { field: fd.key })}
                   value={state.draft.fields[fd.key]}
                   onChange={(v) => { setState("draft", "fields", fd.key, v); saver.schedule(); }}
                 />

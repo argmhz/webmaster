@@ -4,7 +4,7 @@
 use crate::{
     defs,
     error::{AppError, R},
-    ids, refs, AppState,
+    ids, refs, validate, AppState,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -14,20 +14,39 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use ts_rs::TS;
 
-#[derive(Serialize, sqlx::FromRow)]
+/// Dokumentets slags. I databasen er det en tekst; typen er her for TypeScript.
+#[allow(dead_code)]
+#[derive(Serialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum Kind {
+    Page,
+    Datasource,
+    Schedule,
+    Access,
+}
+
+#[derive(Serialize, sqlx::FromRow, TS)]
+#[ts(export)]
 pub struct Doc {
     pub id: String,
+    #[ts(as = "Kind")]
     pub kind: String,
     #[serde(rename = "type")]
     pub doc_type: Option<String>,
     pub name: String,
     pub updated_at: DateTime<Utc>,
+    #[ts(type = "number | null")]
     pub published_version: Option<i64>,
     pub published_at: Option<DateTime<Utc>>,
     pub changed: Option<bool>,
+    #[ts(type = "number")]
     pub used_by: i64,
+    /// Kun med, når ét dokument hentes. Formen afhænger af slags og type.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(type = "any", optional)]
     pub draft: Option<Value>,
 }
 
@@ -86,8 +105,7 @@ pub async fn create(State(s): State<AppState>, Json(b): Json<CreateDoc>) -> R<Js
     if !matches!(b.kind.as_str(), "datasource" | "schedule" | "access") {
         return Err(AppError::bad("Sider oprettes i sidetræet"));
     }
-    let all_defs = defs::load(&s.defs_dir)?;
-    if defs::find_type(&all_defs, &b.kind, &b.doc_type).is_none() {
+    if defs::load(&s.defs_dir).find_type(&b.kind, &b.doc_type).is_none() {
         return Err(AppError::bad(format!("Typen «{}» findes ikke for {}", b.doc_type, b.kind)));
     }
     let id = ids::new(ids::prefix_for(&b.kind));
@@ -158,6 +176,15 @@ pub async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> R<Stat
 }
 
 pub async fn publish(State(s): State<AppState>, Path(id): Path<String>) -> R<Json<Doc>> {
+    let issues = validate::stored(&s, &id).await?;
+    let errors = issues.iter().filter(|i| i.level == validate::Level::Error).count();
+    if errors > 0 {
+        return Err(AppError(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            format!("Kan ikke publiceres: {errors} fejl skal rettes først"),
+            Some(serde_json::to_value(&issues)?),
+        ));
+    }
     let mut tx = s.db.begin().await?;
     let row: Option<(String, Option<String>, Value)> =
         sqlx::query_as("select name, type, draft from documents where id = $1 for update")
@@ -187,8 +214,10 @@ pub async fn publish(State(s): State<AppState>, Path(id): Path<String>) -> R<Jso
     Ok(Json(one(&s.db, &id).await?))
 }
 
-#[derive(Serialize, sqlx::FromRow)]
+#[derive(Serialize, sqlx::FromRow, TS)]
+#[ts(export)]
 pub struct Version {
+    #[ts(type = "number")]
     id: i64,
     name: String,
     published_at: DateTime<Utc>,
@@ -227,15 +256,22 @@ pub async fn restore(State(s): State<AppState>, Path((id, version)): Path<(Strin
     Ok(Json(one(&s.db, &id).await?))
 }
 
-pub async fn used_by(State(s): State<AppState>, Path(id): Path<String>) -> R<Json<Value>> {
-    let rows: Vec<(String, String, String)> = sqlx::query_as(
+#[derive(Serialize, sqlx::FromRow, TS)]
+#[ts(export)]
+pub struct UsedBy {
+    id: String,
+    #[ts(as = "Kind")]
+    kind: String,
+    name: String,
+}
+
+pub async fn used_by(State(s): State<AppState>, Path(id): Path<String>) -> R<Json<Vec<UsedBy>>> {
+    let rows: Vec<UsedBy> = sqlx::query_as(
         "select d.id, d.kind, d.name from refs r join documents d on d.id = r.from_id
           where r.to_id = $1 order by d.kind, lower(d.name)",
     )
     .bind(&id)
     .fetch_all(&s.db)
     .await?;
-    Ok(Json(Value::Array(
-        rows.into_iter().map(|(id, kind, name)| json!({ "id": id, "kind": kind, "name": name })).collect(),
-    )))
+    Ok(Json(rows))
 }

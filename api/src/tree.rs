@@ -11,14 +11,17 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use ts_rs::TS;
 
-#[derive(Serialize, sqlx::FromRow)]
+#[derive(Serialize, sqlx::FromRow, TS)]
+#[ts(export, rename = "TreeNode")]
 pub struct Node {
     pub id: String,
     pub parent_id: Option<String>,
     pub slug: String,
     pub title: String,
     pub sort: i32,
+    #[ts(type = "number | null")]
     pub published_version: Option<i64>,
     pub changed: Option<bool>,
 }

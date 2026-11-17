@@ -1,8 +1,9 @@
 import { createEffect, createResource, createSignal, For, Match, on, Show, Switch } from "solid-js";
 import { createStore, produce, reconcile, unwrap } from "solid-js/store";
-import { api, type Doc, type El, type PageDraft, type Sec, type Vis } from "./api";
+import { api, type Doc, type El, type Issue, type PageDraft, type Sec, type Vis } from "./api";
 import { clearMarks, endDrag, getDrag, showLine, slot, startDrag } from "./dnd";
 import { FieldEditor } from "./FieldEditor";
+import { errorsOf, fieldIssue, IssueSummary, issuesFromError } from "./Issues";
 import { BlockIcon, ClockIcon, LayoutGlyph, LockIcon, VisBadges } from "./icons";
 import { RefPicker } from "./RefPicker";
 import {
@@ -116,6 +117,15 @@ function PageWorkspace(p: { doc: Doc }) {
   const [sel, setSel] = createSignal<Sel>({ kind: "page" });
   const [jsonMode, setJsonMode] = createSignal<"preview" | "published">("preview");
   const [json, setJson] = createSignal<unknown>();
+  const [issues, setIssues] = createSignal<Issue[]>([]);
+  const loadIssues = async () => {
+    try {
+      setIssues(await api.issues(id));
+    } catch {
+      /* listen er kun en hjælp */
+    }
+  };
+  loadIssues();
   const node = () => tree().find((n) => n.id === id);
   let canvas!: HTMLElement;
 
@@ -132,6 +142,7 @@ function PageWorkspace(p: { doc: Doc }) {
     setMeta(m);
     refreshTree();
     loadJson();
+    loadIssues();
   });
   const mutate = (fn: (p: PageDraft) => void) => {
     setDraft(produce(fn));
@@ -150,8 +161,21 @@ function PageWorkspace(p: { doc: Doc }) {
       loadJson();
       toast(`«${node()?.title}» er publiceret`);
     } catch (e) {
+      const list = issuesFromError(e);
+      if (list) setIssues(list);
       toast(errMsg(e), true);
     }
+  };
+  const pickIssue = (i: Issue) => {
+    if (i.element) setSel({ kind: "el", id: i.element });
+    else if (i.section) setSel({ kind: "sec", id: i.section });
+    else setSel({ kind: "page" });
+    const target = i.element ? `[data-el="${i.element}"]` : i.section ? `[data-sec="${i.section}"]` : null;
+    if (target) canvas.querySelector(target)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+  const hasIssue = (key: "section" | "element", sid: string) => {
+    const mine = issues().filter((i) => i[key] === sid && (key === "element" || !i.element));
+    return mine.some((i) => i.level === "error") ? "error" : mine.length ? "warning" : undefined;
   };
 
   /* ---------- handlinger ---------- */
@@ -337,7 +361,7 @@ function PageWorkspace(p: { doc: Doc }) {
       draggable="true"
       tabindex="0"
       role="button"
-      classList={{ active: isSel("el", ep.e.id) }}
+      classList={{ active: isSel("el", ep.e.id), "has-err": hasIssue("element", ep.e.id) === "error", "has-warn": hasIssue("element", ep.e.id) === "warning" }}
       onDragStart={(ev) => startDrag(ev, { kind: "el", id: ep.e.id })}
       onClick={() => setSel({ kind: "el", id: ep.e.id })}
       onKeyDown={(ev) => {
@@ -361,7 +385,7 @@ function PageWorkspace(p: { doc: Doc }) {
         class="sec"
         ref={secEl}
         data-sec={sp.s.id}
-        classList={{ active: isSel("sec", sp.s.id) }}
+        classList={{ active: isSel("sec", sp.s.id), "has-err": hasIssue("section", sp.s.id) === "error", "has-warn": hasIssue("section", sp.s.id) === "warning" }}
         onClick={(e) => {
           if (!(e.target as HTMLElement).closest(".el, button, .lp")) setSel({ kind: "sec", id: sp.s.id });
         }}
@@ -450,9 +474,15 @@ function PageWorkspace(p: { doc: Doc }) {
             }}
           />
           <span class="spacer" />
+          <IssueSummary issues={issues()} onPick={pickIssue} />
           <span class={`status ${st().cls}`}><span class={`dot ${st().cls}`} />{st().label}</span>
           <a class="btn" href={api.sitePageUrl(pathOf(id), true)} target="_blank" rel="noreferrer">Preview</a>
-          <button class="primary" disabled={meta().published_version != null && !meta().changed} onClick={publish}>
+          <button
+            class="primary"
+            disabled={(meta().published_version != null && !meta().changed) || errorsOf(issues()).length > 0}
+            title={errorsOf(issues()).length ? "Ret fejlene før siden kan publiceres" : ""}
+            onClick={publish}
+          >
             Publicér
           </button>
         </div>
@@ -519,7 +549,7 @@ function PageWorkspace(p: { doc: Doc }) {
                       <div class="group-h">Felter</div>
                       <For each={def?.fields ?? []}>
                         {(fd) => (
-                          <FieldEditor def={fd} idPrefix={e.id} value={e.fields[fd.key]} onChange={(v) => updEl(e.id, (x) => { x.fields[fd.key] = v; })} />
+                          <FieldEditor def={fd} idPrefix={e.id} issue={fieldIssue(issues(), { section: f()?.si != null ? draft.sections[f()!.si].id : undefined, element: e.id, field: fd.key })} value={e.fields[fd.key]} onChange={(v) => updEl(e.id, (x) => { x.fields[fd.key] = v; })} />
                         )}
                       </For>
                     </div>
@@ -551,7 +581,7 @@ function PageWorkspace(p: { doc: Doc }) {
                     <div class="group-h">Indstillinger</div>
                     <For each={defs()!.section.fields}>
                       {(fd) => (
-                        <FieldEditor def={fd} idPrefix={s.id} value={s.settings[fd.key]} onChange={(v) => updSec(s.id, (x) => { x.settings[fd.key] = v; })} />
+                        <FieldEditor def={fd} idPrefix={s.id} issue={fieldIssue(issues(), { section: s.id, field: fd.key })} value={s.settings[fd.key]} onChange={(v) => updSec(s.id, (x) => { x.settings[fd.key] = v; })} />
                       )}
                     </For>
                   </div>
@@ -565,6 +595,7 @@ function PageWorkspace(p: { doc: Doc }) {
               id={id}
               draft={draft}
               meta={meta()}
+              issues={issues()}
               onField={(k, v) => mutate((p) => { p.fields[k] = v; })}
               onVis={(k, ids) => mutate((p) => { p[k] = ids; })}
               onRestored={(d) => {
@@ -586,6 +617,7 @@ function PageInspector(p: {
   id: string;
   draft: PageDraft;
   meta: Doc;
+  issues: Issue[];
   onField: (k: string, v: unknown) => void;
   onVis: (k: "schedules" | "access", ids: string[]) => void;
   onRestored: (d: Doc) => void;
@@ -643,7 +675,7 @@ function PageInspector(p: {
         <div class="group">
           <div class="group-h">Felter</div>
           <For each={defs()!.page.fields}>
-            {(fd) => <FieldEditor def={fd} idPrefix={p.id} value={p.draft.fields[fd.key]} onChange={(v) => p.onField(fd.key, v)} />}
+            {(fd) => <FieldEditor def={fd} idPrefix={p.id} issue={fieldIssue(p.issues, { field: fd.key })} value={p.draft.fields[fd.key]} onChange={(v) => p.onField(fd.key, v)} />}
           </For>
         </div>
         <p.Visibility v={p.draft} onChange={p.onVis} />

@@ -1,7 +1,0 @@
-{
-  "type": "segment", "label": "Segment",
-  "fields": [
-    { "key": "segment", "type": "select", "label": "Segment", "optionsFrom": "customer:segments", "options": ["new", "returning", "churn-risk", "vip"] },
-    { "key": "negate", "type": "boolean", "label": "Alle undtagen dette segment", "default": false }
-  ]
-}

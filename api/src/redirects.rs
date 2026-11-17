@@ -5,8 +5,10 @@ use crate::{
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use ts_rs::TS;
 
-#[derive(Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Serialize, Deserialize, sqlx::FromRow, TS)]
+#[ts(export)]
 pub struct Redirect {
     #[serde(rename = "from")]
     pub from_path: String,

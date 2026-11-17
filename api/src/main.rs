@@ -7,6 +7,7 @@ mod refs;
 mod seed;
 mod site;
 mod tree;
+mod validate;
 
 use axum::{
     routing::{get, patch, post},
@@ -45,6 +46,9 @@ async fn main() -> anyhow::Result<()> {
 
     let defs_dir = PathBuf::from(std::env::var("DEFINITIONS_DIR").unwrap_or_else(|_| "../definitions".into()));
     let static_dir = PathBuf::from(std::env::var("STATIC_DIR").unwrap_or_else(|_| "./static".into()));
+    for p in defs::load(&defs_dir).problems {
+        tracing::warn!("definitions/{}: {}", p.file, p.message);
+    }
     let state = AppState { db, defs_dir };
 
     let api = Router::new()
@@ -59,6 +63,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/documents/:id/versions", get(documents::versions))
         .route("/documents/:id/restore/:version", post(documents::restore))
         .route("/documents/:id/used-by", get(documents::used_by))
+        .route("/documents/:id/issues", get(validate::get_issues))
         .route("/redirects", get(redirects::list).put(redirects::replace))
         // sitet (kun konfiguration – sitet resolver selv datasources, schedules og access)
         .route("/site/page", get(site::page))

@@ -6,7 +6,7 @@ import { Library } from "./Library";
 import { PageEditor } from "./PageEditor";
 import { Redirects } from "./Redirects";
 import {
-  errMsg, navigate, refreshLibrary, refreshTree, route, saveState, setDefs, toasts, type View,
+  defs, errMsg, navigate, refreshLibrary, refreshTree, route, saveState, setDefs, toasts, type View,
 } from "./store";
 
 const TABS: { view: View; label: string; kind?: RefKind }[] = [
@@ -47,6 +47,9 @@ export function App() {
               <button classList={{ active: route().view === t.view }} onClick={() => navigate(t.view)}>
                 {t.kind && <KindIcon kind={t.kind} />}
                 {t.label}
+                {t.view === "definitions" && defs()?.problems.length ? (
+                  <span class="tag danger" title="Der er problemer i definitions/">{defs()!.problems.length}</span>
+                ) : null}
               </button>
             )}
           </For>
