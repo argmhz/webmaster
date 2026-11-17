@@ -1,0 +1,6 @@
+{
+  "type": "notFound", "label": "404-side", "description": "Siden, der vises, når en adresse ikke findes. Byg den som en almindelig side i sidetræet.",
+  "fields": [
+    {"key": "target", "type": "link", "label": "Side", "required": true, "help": "Vælg en side med knappen «Side…»."}
+  ]
+}

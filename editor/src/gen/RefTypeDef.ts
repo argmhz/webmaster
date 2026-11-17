@@ -8,4 +8,8 @@ export type RefTypeDef = { type: string, label: string,
 /**
  * Kun datasources: hvilken service sitet skal hente data fra.
  */
-source?: string, description?: string, fields: Array<FieldDef>, };
+source?: string, description?: string, 
+/**
+ * Kun globals: der kan være flere dokumenter af typen (fx menuer). Ellers er der ét.
+ */
+multiple?: boolean, fields: Array<FieldDef>, };

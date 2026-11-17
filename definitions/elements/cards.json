@@ -1,0 +1,18 @@
+{
+  "type": "cards", "version": 1, "label": "Kort", "description": "En række kort. Hvert kort kan være et eget kort med tekst og farver, et billede eller et af de faste kort.",
+  "fields": [
+    {"key": "cards", "type": "list", "label": "Kort", "required": true, "minItems": 1, "itemLabel": "title", "fields": [
+        {"key": "kind", "type": "select", "label": "Type", "required": true, "default": "custom", "options": [{"value": "custom", "label": "Eget kort"}, {"value": "image", "label": "Billede"}, {"value": "epaper", "label": "E-avis"}, {"value": "morningbrief", "label": "Morgenbrief"}, {"value": "opinion", "label": "Debat"}, {"value": "global", "label": "Fra Directus"}]},
+        {"key": "image", "type": "image", "label": "Billede", "required": true, "showWhen": {"field": "kind", "equals": "image"}},
+        {"key": "backgroundImage", "type": "image", "label": "Baggrundsbillede", "showWhen": {"field": "kind", "equals": "custom"}},
+        {"key": "headline", "type": "text", "label": "Rubrik", "showWhen": {"field": "kind", "equals": "custom"}},
+        {"key": "headlineColor", "type": "color", "label": "Farve på rubrik", "palette": "brand", "showWhen": {"field": "kind", "equals": "custom"}},
+        {"key": "title", "type": "text", "label": "Titel", "showWhen": {"field": "kind", "equals": "custom"}},
+        {"key": "titleColor", "type": "color", "label": "Farve på titel", "palette": "brand", "showWhen": {"field": "kind", "equals": "custom"}},
+        {"key": "footerLabel", "type": "text", "label": "Tekst i bunden", "showWhen": {"field": "kind", "equals": "custom"}},
+        {"key": "footerLabelColor", "type": "color", "label": "Farve på tekst i bunden", "palette": "brand", "showWhen": {"field": "kind", "equals": "custom"}},
+        {"key": "link", "type": "link", "label": "Link", "showWhen": {"field": "kind", "in": ["custom", "image"]}},
+        {"key": "directusId", "type": "text", "label": "Kort-id i Directus", "required": true, "showWhen": {"field": "kind", "equals": "global"}}
+      ] }
+  ]
+}

@@ -8,7 +8,11 @@ export type FieldDef = { key: string, type: FieldType, label?: string, help?: st
 /**
  * Tekst i et tomt felt.
  */
-placeholder?: string, options?: Array<OptionDef>, optionsFrom?: string, min?: number, max?: number, step?: number, minLength?: number, maxLength?: number, 
+placeholder?: string, options?: Array<OptionDef>, optionsFrom?: string, 
+/**
+ * color: navnet på en palet i palettes.json. Ved indlæsning lægges farverne i `options`.
+ */
+palette?: string, min?: number, max?: number, step?: number, minLength?: number, maxLength?: number, 
 /**
  * Regulært udtryk, som hele værdien skal matche.
  */

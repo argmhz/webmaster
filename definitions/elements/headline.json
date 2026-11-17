@@ -1,0 +1,25 @@
+{
+  "type": "headline", "version": 1, "label": "Overskrift", "description": "Overskrift over en række eller en side. «Egen» giver fuld kontrol over skrift og farver.",
+  "fields": [
+    {"key": "kind", "type": "select", "label": "Type", "required": true, "default": "section", "options": [{"value": "frontpage", "label": "Forside (logo)"}, {"value": "frontpage-right-now", "label": "Forside (lige nu)"}, {"value": "play", "label": "Play"}, {"value": "custom", "label": "Egen"}, {"value": "profile", "label": "Profil"}, {"value": "section", "label": "Sektion"}, {"value": "breaker", "label": "Breaker"}, {"value": "tag", "label": "Tag"}, {"value": "proselvstaendig", "label": "Pro Selvstændig"}, {"value": "prointernational", "label": "Pro International"}, {"value": "profinans", "label": "Pro Finans"}, {"value": "profinancialtimes", "label": "Pro Financial Times"}, {"value": "proeconomist", "label": "Pro Economist"}, {"value": "economicbriefing", "label": "Økonomisk Briefing"}, {"value": "investoracademy", "label": "Investor Academy"}]},
+    {"key": "title", "type": "text", "label": "Tekst", "showWhen": {"field": "kind", "in": ["custom", "section", "tag", "breaker"]}},
+    {"key": "profile", "type": "select", "label": "Profil", "required": true, "optionsFrom": "editorial:profiles", "options": [{"value": "redaktionen", "label": "Redaktionen"}], "showWhen": {"field": "kind", "equals": "profile"}},
+    {"key": "textAlign", "type": "select", "label": "Justering", "default": "left", "options": [{"value": "left", "label": "Venstre"}, {"value": "center", "label": "Midt"}, {"value": "right", "label": "Højre"}]},
+    {"key": "style", "type": "group", "label": "Udseende", "showWhen": {"field": "kind", "equals": "custom"}, "fields": [
+        {"key": "font", "type": "select", "label": "Skrifttype", "options": [{"value": "gta-condensed", "label": "GT America Condensed"}, {"value": "tiempos-fine", "label": "Tiempos Fine"}, {"value": "tiempos-headline", "label": "Tiempos Headline"}, {"value": "tiempos-text", "label": "Tiempos Text"}]},
+        {"key": "fontSize", "type": "number", "label": "Skriftstørrelse (px)", "min": 8, "max": 120, "step": 1},
+        {"key": "fontWeight", "type": "select", "label": "Tykkelse", "options": [{"value": "100", "label": "100"}, {"value": "200", "label": "200"}, {"value": "300", "label": "300"}, {"value": "400", "label": "400"}, {"value": "500", "label": "500"}]},
+        {"key": "color", "type": "color", "label": "Farve", "palette": "brand"},
+        {"key": "topline", "type": "boolean", "label": "Streg over", "default": false},
+        {"key": "toplineSize", "type": "number", "label": "Tykkelse på streg over (px)", "min": 1, "max": 20, "step": 1, "showWhen": {"field": "topline", "equals": true}},
+        {"key": "toplineOpacity", "type": "select", "label": "Gennemsigtighed", "options": [{"value": "1.0", "label": "1.0"}, {"value": "0.9", "label": "0.9"}, {"value": "0.8", "label": "0.8"}, {"value": "0.7", "label": "0.7"}, {"value": "0.6", "label": "0.6"}, {"value": "0.5", "label": "0.5"}, {"value": "0.4", "label": "0.4"}, {"value": "0.3", "label": "0.3"}, {"value": "0.2", "label": "0.2"}, {"value": "0.1", "label": "0.1"}], "showWhen": {"field": "topline", "equals": true}},
+        {"key": "toplineColor", "type": "color", "label": "Farve på streg over", "palette": "brand", "showWhen": {"field": "topline", "equals": true}},
+        {"key": "underline", "type": "boolean", "label": "Streg under", "default": false},
+        {"key": "underlineSize", "type": "number", "label": "Tykkelse på streg under (px)", "min": 1, "max": 20, "step": 1, "showWhen": {"field": "underline", "equals": true}},
+        {"key": "underlineOpacity", "type": "select", "label": "Gennemsigtighed", "options": [{"value": "1.0", "label": "1.0"}, {"value": "0.9", "label": "0.9"}, {"value": "0.8", "label": "0.8"}, {"value": "0.7", "label": "0.7"}, {"value": "0.6", "label": "0.6"}, {"value": "0.5", "label": "0.5"}, {"value": "0.4", "label": "0.4"}, {"value": "0.3", "label": "0.3"}, {"value": "0.2", "label": "0.2"}, {"value": "0.1", "label": "0.1"}], "showWhen": {"field": "underline", "equals": true}},
+        {"key": "underlineColor", "type": "color", "label": "Farve på streg under", "palette": "brand", "showWhen": {"field": "underline", "equals": true}}
+      ] },
+    {"key": "link", "type": "link", "label": "Link"},
+    {"key": "newWindow", "type": "boolean", "label": "Åbn i nyt vindue", "default": false, "showWhen": {"field": "link", "notEmpty": true}}
+  ]
+}

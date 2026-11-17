@@ -1,0 +1,25 @@
+{
+  "type": "permissionTexts", "label": "Samtykketekster", "description": "Teksterne om markedsføringssamtykke på Mit Børsen.",
+  "fields": [
+    {"key": "marketing", "type": "group", "label": "Markedsføring", "fields": [
+        {"key": "title", "type": "text", "label": "Titel"},
+        {"key": "content", "type": "richtext", "label": "Tekst"},
+        {"key": "statusSubscribed", "type": "text", "label": "Status: tilmeldt"},
+        {"key": "statusUnsubscribed", "type": "text", "label": "Status: frameldt"},
+        {"key": "buttonUnsubscribe", "type": "text", "label": "Knap: frameld"},
+        {"key": "buttonSubscribe", "type": "text", "label": "Knap: tilmeld"}
+      ] },
+    {"key": "similar", "type": "group", "label": "Tilsvarende produkter", "fields": [
+        {"key": "title", "type": "text", "label": "Titel"},
+        {"key": "content", "type": "richtext", "label": "Tekst"},
+        {"key": "statusSubscribed", "type": "text", "label": "Status: tilmeldt"},
+        {"key": "statusUnsubscribed", "type": "text", "label": "Status: frameldt"},
+        {"key": "buttonUnsubscribe", "type": "text", "label": "Knap: frameld"},
+        {"key": "buttonSubscribe", "type": "text", "label": "Knap: tilmeld"}
+      ] },
+    {"key": "login", "type": "group", "label": "Login", "fields": [
+        {"key": "title", "type": "text", "label": "Titel"},
+        {"key": "content", "type": "richtext", "label": "Tekst"}
+      ] }
+  ]
+}

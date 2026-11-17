@@ -1,0 +1,60 @@
+{
+  "brand": [
+    {
+      "value": "#faeae0",
+      "label": "Pink paper"
+    },
+    {
+      "value": "#db3d7f",
+      "label": "Magenta"
+    },
+    {
+      "value": "#872324",
+      "label": "Børsen Pro"
+    },
+    {
+      "value": "#a5845c",
+      "label": "Executive"
+    },
+    {
+      "value": "#282828",
+      "label": "Ink"
+    },
+    {
+      "value": "#979797",
+      "label": "Grey"
+    },
+    {
+      "value": "#ffffff",
+      "label": "White"
+    },
+    {
+      "value": "#cc3333",
+      "label": "Red"
+    },
+    {
+      "value": "#4d8c57",
+      "label": "Green"
+    },
+    {
+      "value": "#3868b2",
+      "label": "Light blue"
+    },
+    {
+      "value": "#1e3860",
+      "label": "Dark blue"
+    },
+    {
+      "value": "#2c5163",
+      "label": "Job blue"
+    },
+    {
+      "value": "#1C5041",
+      "label": "Dark green"
+    },
+    {
+      "value": "#FF5073",
+      "label": "Fiery rose alt"
+    }
+  ]
+}

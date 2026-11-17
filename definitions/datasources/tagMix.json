@@ -1,0 +1,9 @@
+{
+  "type": "tagMix", "source": "editorial", "label": "Tag-mix", "description": "Et bestemt antal artikler fra hver gruppe af tags, i den rækkefølge grupperne står.",
+  "fields": [
+    {"key": "groups", "type": "list", "label": "Grupper", "required": true, "minItems": 1, "fields": [
+        {"key": "tags", "type": "tags", "label": "Tags", "required": true},
+        {"key": "amount", "type": "number", "label": "Antal", "required": true, "default": 1, "min": 1, "max": 20, "step": 1}
+      ] }
+  ]
+}

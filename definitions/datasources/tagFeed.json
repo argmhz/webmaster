@@ -1,0 +1,9 @@
+{
+  "type": "tagFeed", "source": "editorial", "label": "Tags", "description": "Artikler med bestemte tags. Med «Brug tag fra URL» læses tagget af sidens adresse.",
+  "fields": [
+    {"key": "fromUrl", "type": "boolean", "label": "Brug tag fra URL", "default": false},
+    {"key": "tags", "type": "tags", "label": "Tags", "required": true, "showWhen": {"field": "fromUrl", "equals": false}},
+    {"key": "scheme", "type": "text", "label": "Tag-skema", "help": "Fx «person» eller «company». Tom: alle.", "showWhen": {"field": "fromUrl", "equals": true}},
+    {"key": "match", "type": "select", "label": "Artiklen skal have", "default": "any", "options": [{"value": "any", "label": "Mindst ét af taggene"}, {"value": "all", "label": "Alle taggene"}], "showWhen": {"field": "fromUrl", "equals": false}}
+  ]
+}

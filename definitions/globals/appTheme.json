@@ -1,0 +1,11 @@
+{
+  "type": "appTheme", "label": "App-temaer",
+  "fields": [
+    {"key": "themes", "type": "list", "label": "Temaer", "itemLabel": "title", "fields": [
+        {"key": "name", "type": "text", "label": "Nøgle", "required": true, "pattern": "[a-z0-9-]+", "help": "Små bogstaver, tal og bindestreg"},
+        {"key": "title", "type": "text", "label": "Navn", "required": true},
+        {"key": "backgroundColor", "type": "color", "label": "Baggrund"},
+        {"key": "textColor", "type": "color", "label": "Tekst"}
+      ] }
+  ]
+}

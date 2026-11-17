@@ -1,0 +1,7 @@
+{
+  "type": "hasTag", "label": "Artiklen har tag", "description": "Opfyldt, når artiklen, siden viser, har taggene. Giver kun mening på artikelsider.",
+  "fields": [
+    {"key": "tags", "type": "tags", "label": "Tags", "required": true},
+    {"key": "match", "type": "select", "label": "Artiklen skal have", "default": "any", "options": [{"value": "any", "label": "Mindst ét af taggene"}, {"value": "all", "label": "Alle taggene"}]}
+  ]
+}

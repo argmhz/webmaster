@@ -1,0 +1,480 @@
+{
+  "data": [
+    {
+      "key": "latest",
+      "name": "Seneste (mock)"
+    },
+    {
+      "key": "finans",
+      "name": "Finans (mock)"
+    },
+    {
+      "key": "pleasure",
+      "name": "Pleasure (mock)"
+    },
+    {
+      "key": "mostread",
+      "name": "Mest læste (mock)"
+    },
+    {
+      "key": "latest_by_section:Finans",
+      "name": "Seneste - finans (mock)"
+    },
+    {
+      "key": "mostread:Finans",
+      "name": "Mest læste - finans (mock)"
+    },
+    {
+      "key": "allnative",
+      "name": "Native (mock)"
+    },
+    {
+      "key": "section:ece_frontpage",
+      "name": "Forside (mock)"
+    },
+    {
+      "key": "ejendomme",
+      "name": "Ejendomme (mock)"
+    },
+    {
+      "key": "latest_by_section:Ejendomme",
+      "name": "Seneste - Ejendomme (mock)"
+    },
+    {
+      "key": "mostread:Ejendomme",
+      "name": "Mest læste - ejendomme (mock)"
+    },
+    {
+      "key": "investor",
+      "name": "Investor (mock)"
+    },
+    {
+      "key": "mostread:Investor",
+      "name": "Mest læste - Investor (mock)"
+    },
+    {
+      "key": "latest_by_section:Investor",
+      "name": "Seneste - Investor (mock)"
+    },
+    {
+      "key": "latest_by_section:ejendomme",
+      "name": "Seneste ejendomme (mock)"
+    },
+    {
+      "key": "virksomheder",
+      "name": "Virksomheder (mock)"
+    },
+    {
+      "key": "mostread:Virksomheder",
+      "name": "Mest læste - Virksomheder (mock)"
+    },
+    {
+      "key": "latest_by_section:Virksomheder",
+      "name": "Seneste - Virksomheder (mock)"
+    },
+    {
+      "key": "okonomi",
+      "name": "Økonomi (mock)"
+    },
+    {
+      "key": "mostread:Økonomi",
+      "name": "Mest læste - Økonomi (mock)"
+    },
+    {
+      "key": "latest_by_section:Økonomi",
+      "name": "Seneste - Økonomi (mock)"
+    },
+    {
+      "key": "longread",
+      "name": "Longread (mock)"
+    },
+    {
+      "key": "latest_by_section:Longread",
+      "name": "Seneste - Longread (mock)"
+    },
+    {
+      "key": "mostread:Longread",
+      "name": "Mest læste - Longread (mock)"
+    },
+    {
+      "key": "opinion",
+      "name": "Opinion (mock)"
+    },
+    {
+      "key": "latest_by_section:Opinion",
+      "name": "Seneste - Opinion (mock)"
+    },
+    {
+      "key": "mostread:Opinion",
+      "name": "Mest læste - Opinion (mock)"
+    },
+    {
+      "key": "politik",
+      "name": "Politik (mock)"
+    },
+    {
+      "key": "latest_by_section:Politik",
+      "name": "Seneste - Politik (mock)"
+    },
+    {
+      "key": "mostread:Politik",
+      "name": "Mest læste - Politik (mock)"
+    },
+    {
+      "key": "mostread:Pro selvstændig",
+      "name": "Mest læste - Pro selvstændig (mock)"
+    },
+    {
+      "key": "latest_by_section:Pro selvstændig",
+      "name": "Seneste - Pro selvstændig (mock)"
+    },
+    {
+      "key": "proselvstaendig",
+      "name": "Pro selvstændig (mock)"
+    },
+    {
+      "key": "mostread:Perspektiv",
+      "name": "Mest læste perspektiv (mock)"
+    },
+    {
+      "key": "perspektiv",
+      "name": "Perspektiv (mock)"
+    },
+    {
+      "key": "prointernational",
+      "name": "Pro international (mock)"
+    },
+    {
+      "key": "section_with_subsections:prointernational",
+      "name": "Seneste - Pro international (mock)"
+    },
+    {
+      "key": "pi_technology",
+      "name": "Pro international Technology (mock)"
+    },
+    {
+      "key": "pi_companies",
+      "name": "Pro international Companies (mock)"
+    },
+    {
+      "key": "pi_economics",
+      "name": "Pro international Economics (mock)"
+    },
+    {
+      "key": "pi_markets",
+      "name": "Pro international Markets (mock)"
+    },
+    {
+      "key": "pi_analysis",
+      "name": "Pro international Analysis (mock)"
+    },
+    {
+      "key": "pi_politics",
+      "name": "Pro international Politics (mock)"
+    },
+    {
+      "key": "pi_pursuits",
+      "name": "Pro international Pursuits (mock)"
+    },
+    {
+      "key": "profinans",
+      "name": "Pro Finans (mock)"
+    },
+    {
+      "key": "pf_analyse",
+      "name": "Pro Finans Analyser (mock)"
+    },
+    {
+      "key": "section_with_subsections:profinans",
+      "name": "Seneste Pro finans + undersektioner (mock)"
+    },
+    {
+      "key": "section_with_subsections:pf_analyse",
+      "name": "Seneste Analyse (mock)"
+    },
+    {
+      "key": "section_with_subsections:advertorial",
+      "name": "Advertorial (mock)"
+    },
+    {
+      "key": "latest_by_section:Ledelse",
+      "name": "Ledelse (mock)"
+    },
+    {
+      "key": "samfund",
+      "name": "Samfund (mock)"
+    },
+    {
+      "key": "latest_by_section:Samfund",
+      "name": "Seneste Samfund (mock)"
+    },
+    {
+      "key": "udland",
+      "name": "Udland (mock)"
+    },
+    {
+      "key": "section_with_subsections:udland",
+      "name": "Seneste Udland (mock)"
+    },
+    {
+      "key": "latest_by_section:Podcast",
+      "name": "Seneste Podcast (mock)"
+    },
+    {
+      "key": "latest_by_section:AI",
+      "name": "Seneste AI (mock)"
+    },
+    {
+      "key": "latest_by_section:Pleasure",
+      "name": "Seneste Pleasure (mock)"
+    },
+    {
+      "key": "latest_by_section:Overblik",
+      "name": "Seneste Overblik (mock)"
+    },
+    {
+      "key": "latest_by_section:Quiz",
+      "name": "Seneste Quiz (mock)"
+    },
+    {
+      "key": "latest_by_section:Pro Financial Times",
+      "name": "Pro Financial Times (mock)"
+    },
+    {
+      "key": "latest_by_section:Bæredygtig",
+      "name": "Seneste Bæredytig (mock)"
+    },
+    {
+      "key": "latest_by_section:prointernational",
+      "name": "Seneste Prointernational (mock)"
+    },
+    {
+      "key": "latest_by_section:Pro Economist",
+      "name": "Pro Economist (mock)"
+    },
+    {
+      "key": "latest_by_section:prookonomiskbriefing",
+      "name": "Pro Økonomisk Briefing (mock)"
+    },
+    {
+      "key": "latest_by_section:Markedsberetninger",
+      "name": "Seneste Markedsberetninger (mock)"
+    },
+    {
+      "key": "latest_by_section:ForsikringsBrief",
+      "name": "Seneste Forsikringsbrief (mock)"
+    },
+    {
+      "key": "forsikringsbrief",
+      "name": "Forsikringsbrief (mock)"
+    },
+    {
+      "key": "latest_by_section:AdvisorBrief",
+      "name": "Seneste Advisorbrief (mock)"
+    },
+    {
+      "key": "advisorbrief",
+      "name": "Advisorbrief (mock)"
+    },
+    {
+      "key": "latest_by_section:SecurityBrief",
+      "name": "Seneste SecurityBrief (mock)"
+    },
+    {
+      "key": "securitybrief",
+      "name": "SecurityBrief (mock)"
+    },
+    {
+      "key": "latest_by_section:Video",
+      "name": "Seneste Video (mock)"
+    },
+    {
+      "key": "latest_by_section:Energi",
+      "name": "Seneste Energi (mock)"
+    },
+    {
+      "key": "latest_by_section:IT og Tele",
+      "name": "Seneste IT og Tele (mock)"
+    },
+    {
+      "key": "section:baeredygtig",
+      "name": "Bæredygtig (mock)"
+    },
+    {
+      "key": "section:ejendomme",
+      "name": "Ejendomme (mock)"
+    },
+    {
+      "key": "section:executive",
+      "name": "Executive (mock)"
+    },
+    {
+      "key": "section:finans",
+      "name": "Finans (mock)"
+    },
+    {
+      "key": "section:generelt",
+      "name": "Generelt (mock)"
+    },
+    {
+      "key": "section:investor",
+      "name": "Investor (mock)"
+    },
+    {
+      "key": "mostread:finans",
+      "name": "Mest læste - finans (mock)"
+    },
+    {
+      "key": "mostread:pleasure",
+      "name": "Mest læste - pleasure (mock)"
+    },
+    {
+      "key": "mostread:opinion",
+      "name": "Mest læste - opinion (mock)"
+    },
+    {
+      "key": "section:opinion",
+      "name": "Opinion (mock)"
+    },
+    {
+      "key": "section:penge",
+      "name": "Penge (mock)"
+    },
+    {
+      "key": "latest_by_section:Play",
+      "name": "Play (mock)"
+    },
+    {
+      "key": "section:pleasure",
+      "name": "Pleasure (mock)"
+    },
+    {
+      "key": "section:politik",
+      "name": "Politik (mock)"
+    },
+    {
+      "key": "section:tech",
+      "name": "Tech (mock)"
+    },
+    {
+      "key": "section:oekonomi",
+      "name": "Økonomi (mock)"
+    },
+    {
+      "key": "section:virksomheder",
+      "name": "Virksomheder (mock)"
+    },
+    {
+      "key": "section:longread",
+      "name": "Longread (mock)"
+    },
+    {
+      "key": "section:selvstaendig",
+      "name": "Selvstændig (mock)"
+    },
+    {
+      "key": "section:perspektiv",
+      "name": "Perspektiv (mock)"
+    },
+    {
+      "key": "section:prointernational",
+      "name": "Pro international (mock)"
+    },
+    {
+      "key": "section:pi_companies",
+      "name": "Pro international Companies (mock)"
+    },
+    {
+      "key": "section:pi_economics",
+      "name": "Pro international Economics (mock)"
+    },
+    {
+      "key": "section:pi_markets",
+      "name": "Pro international Markets (mock)"
+    },
+    {
+      "key": "section:pi_analysis",
+      "name": "Pro international Analysis (mock)"
+    },
+    {
+      "key": "section:pi_politics",
+      "name": "Pro international Politics (mock)"
+    },
+    {
+      "key": "section:pi_pursuits",
+      "name": "Pro international Pursuits (mock)"
+    },
+    {
+      "key": "section:pi_technology",
+      "name": "Pro international Technology (mock)"
+    },
+    {
+      "key": "section:profinans",
+      "name": "Pro finans (mock)"
+    },
+    {
+      "key": "latest_by_section:Pro finans",
+      "name": "Seneste Pro Finans (mock)"
+    },
+    {
+      "key": "section:pf_analyse",
+      "name": "Pro Finans Analyser (mock)"
+    },
+    {
+      "key": "latest_by_section:Analyser",
+      "name": "Seneste Pro Finans Analyser (mock)"
+    },
+    {
+      "key": "section:podcast",
+      "name": "Podcast (mock)"
+    },
+    {
+      "key": "section:ai",
+      "name": "AI (mock)"
+    },
+    {
+      "key": "section:quiz",
+      "name": "Quiz (mock)"
+    },
+    {
+      "key": "latest_by_section:Tech",
+      "name": "Tech (mock)"
+    },
+    {
+      "key": "latest_by_section:Økonomisk briefing",
+      "name": "Pro Økonomisk Briefing (mock)"
+    },
+    {
+      "key": "latest_by_section:Pro Finans",
+      "name": "Pro Finans (mock)"
+    },
+    {
+      "key": "latest_by_section:Forsikringsbrief",
+      "name": "Seneste Forsikringsbrief (mock)"
+    },
+    {
+      "key": "section:forsikringsbrief",
+      "name": "Forsikringsbrief (mock)"
+    },
+    {
+      "key": "latest_by_section:Advisorbrief",
+      "name": "Seneste Advisorbrief (mock)"
+    },
+    {
+      "key": "section:advisorbrief",
+      "name": "Advisorbrief (mock)"
+    },
+    {
+      "key": "section:securitybrief",
+      "name": "SecurityBrief (mock)"
+    },
+    {
+      "key": "section:magtkamp-i-novo",
+      "name": "Magtkamp i Novo (mock)"
+    },
+    {
+      "key": "latest_by_section:Ai",
+      "name": "Seneste Ai (mock)"
+    }
+  ]
+}

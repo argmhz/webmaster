@@ -1,0 +1,10 @@
+{
+  "type": "pushSettings", "label": "Push-beskeder", "description": "De emner, brugerne kan få push-beskeder om i appen.",
+  "fields": [
+    {"key": "tags", "type": "list", "label": "Emner", "itemLabel": "displayName", "fields": [
+        {"key": "displayName", "type": "text", "label": "Navn", "required": true},
+        {"key": "tag", "type": "text", "label": "Tag", "required": true},
+        {"key": "default", "type": "boolean", "label": "Valgt fra start", "default": false}
+      ] }
+  ]
+}

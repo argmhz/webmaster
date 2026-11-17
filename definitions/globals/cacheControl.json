@@ -1,0 +1,6 @@
+{
+  "type": "cacheControl", "label": "Cache", "description": "Skift nøglen for at tvinge sitet til at hente alt forfra.",
+  "fields": [
+    {"key": "cacheBusterKey", "type": "text", "label": "Cache-nøgle", "pattern": "[A-Za-z0-9_-]+"}
+  ]
+}

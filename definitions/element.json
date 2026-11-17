@@ -1,0 +1,9 @@
+{
+  "type": "element",
+  "fields": [
+    {"key": "elementId", "type": "text", "label": "Element-id", "help": "Bruges af tracking (Cxense, Kilkaya) til at kende elementet. Skal være unikt på siden.", "pattern": "[A-Za-z0-9_-]+"},
+    {"key": "utmCampaign", "type": "text", "label": "UTM-kampagne", "help": "Overstyrer utm_campaign på links i elementet."},
+    {"key": "hideOn", "type": "multiselect", "label": "Skjul på", "options": [{"value": "desktop", "label": "Desktop"}, {"value": "tablet", "label": "Tablet"}, {"value": "mobile", "label": "Mobil"}]},
+    {"key": "classes", "type": "tags", "label": "CSS-klasser", "pattern": "[A-Za-z0-9_-]+", "help": "Bogstaver, tal, - og _. Én klasse pr. punkt."}
+  ]
+}

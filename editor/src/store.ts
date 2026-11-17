@@ -12,7 +12,7 @@ export const refreshLibrary = async () => setLibrary((await api.docs()).filter((
 
 /* ---------- routing via #hash, så reload bevarer stedet ---------- */
 export type View = "pages" | RefKind | "redirects" | "definitions";
-const VIEWS: View[] = ["pages", "datasource", "schedule", "access", "redirects", "definitions"];
+const VIEWS: View[] = ["pages", "datasource", "schedule", "access", "global", "redirects", "definitions"];
 export interface Route { view: View; id?: string }
 function parseHash(): Route {
   const [v, id] = location.hash.slice(1).split("/");
@@ -27,10 +27,11 @@ export function navigate(view: View, id?: string) {
 }
 
 /* ---------- labels ---------- */
-export const KIND: Record<RefKind, { one: string; plural: string; defsKey: "datasources" | "schedules" | "access" }> = {
+export const KIND: Record<RefKind, { one: string; plural: string; defsKey: "datasources" | "schedules" | "access" | "globals" }> = {
   datasource: { one: "datasource", plural: "Datasources", defsKey: "datasources" },
   schedule: { one: "schedule", plural: "Schedules", defsKey: "schedules" },
   access: { one: "access-regel", plural: "Access", defsKey: "access" },
+  global: { one: "global", plural: "Globals", defsKey: "globals" },
 };
 export const refTypes = (kind: RefKind): RefTypeDef[] => defs()?.[KIND[kind].defsKey] ?? [];
 export const refType = (kind: RefKind, type: string | null) => refTypes(kind).find((t) => t.type === type);

@@ -1,0 +1,12 @@
+{
+  "type": "cookieConsent", "label": "Cookie consent", "description": "Scripts, der kun må køre, når den besøgende har givet samtykke til en bestemt kategori.",
+  "fields": [
+    {"key": "services", "type": "list", "label": "Services", "itemLabel": "scriptSrc", "fields": [
+        {"key": "scriptSrc", "type": "text", "label": "Script-URL", "required": true, "pattern": "https://.+", "help": "Skal starte med https://"},
+        {"key": "category", "type": "select", "label": "Kategori", "required": true, "options": [{"value": "cookie_cat_necessary", "label": "Nødvendige"}, {"value": "cookie_cat_functional", "label": "Funktionelle"}, {"value": "cookie_cat_statistic", "label": "Statistik"}, {"value": "cookie_cat_marketing", "label": "Marketing"}, {"value": "cookie_cat_unclassified", "label": "Uklassificerede"}, {"value": "always_execute", "label": "Altid"}]},
+        {"key": "windowVariables", "type": "tags", "label": "Window-variabler", "help": "Variabler, komponenten sætter på window."},
+        {"key": "fallbackText", "type": "richtext", "label": "Tekst uden samtykke"},
+        {"key": "fallbackClass", "type": "text", "label": "CSS-klasse til teksten", "pattern": "[A-Za-z0-9_ -]+"}
+      ] }
+  ]
+}

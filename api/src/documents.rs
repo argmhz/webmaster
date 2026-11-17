@@ -1,4 +1,4 @@
-//! Dokumenter: sider, datasources, schedules og access.
+//! Dokumenter: sider, datasources, schedules, access og globals.
 //! Kladden gemmes løbende; publicering laver en uforanderlig version.
 
 use crate::{
@@ -26,6 +26,7 @@ pub enum Kind {
     Datasource,
     Schedule,
     Access,
+    Global,
 }
 
 #[derive(Serialize, sqlx::FromRow, TS)]
@@ -102,13 +103,26 @@ pub struct CreateDoc {
 }
 
 pub async fn create(State(s): State<AppState>, Json(b): Json<CreateDoc>) -> R<Json<Doc>> {
-    if !matches!(b.kind.as_str(), "datasource" | "schedule" | "access") {
+    if !matches!(b.kind.as_str(), "datasource" | "schedule" | "access" | "global") {
         return Err(AppError::bad("Sider oprettes i sidetræet"));
     }
-    if defs::load(&s.defs_dir).find_type(&b.kind, &b.doc_type).is_none() {
+    let defs = defs::load(&s.defs_dir);
+    let Some(def) = defs.find_type(&b.kind, &b.doc_type) else {
         return Err(AppError::bad(format!("Typen «{}» findes ikke for {}", b.doc_type, b.kind)));
+    };
+    // En global uden «multiple» har ét dokument med et fast id, så sitet kan slå den op på typen.
+    let id = if b.kind == "global" && !def.multiple {
+        format!("gl_{}", b.doc_type)
+    } else {
+        ids::new(ids::prefix_for(&b.kind))
+    };
+    let exists: bool = sqlx::query_scalar("select exists(select 1 from documents where id = $1)")
+        .bind(&id)
+        .fetch_one(&s.db)
+        .await?;
+    if exists {
+        return Err(AppError::conflict(format!("«{}» findes allerede", def.label)));
     }
-    let id = ids::new(ids::prefix_for(&b.kind));
     let draft = b.draft.unwrap_or_else(|| json!({ "fields": {} }));
     let mut tx = s.db.begin().await?;
     sqlx::query("insert into documents (id, kind, type, name, draft) values ($1, $2, $3, $4, $5)")

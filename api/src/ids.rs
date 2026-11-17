@@ -13,6 +13,7 @@ pub fn prefix_for(kind: &str) -> &'static str {
         "datasource" => "ds",
         "schedule" => "sch",
         "access" => "acc",
+        "global" => "gl",
         _ => "pg",
     }
 }

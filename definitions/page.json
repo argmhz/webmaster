@@ -1,9 +1,25 @@
 {
   "type": "page",
   "fields": [
-    { "key": "title", "type": "text", "label": "Sidetitel", "required": true, "maxLength": 70 },
-    { "key": "description", "type": "richtext", "label": "Meta-beskrivelse", "maxLength": 160 },
-    { "key": "noindex", "type": "boolean", "label": "Skjul for søgemaskiner", "default": false },
-    { "key": "reviewBy", "type": "date", "label": "Gennemgå senest", "help": "Hvornår siden skal tjekkes igen" }
+    {"key": "title", "type": "text", "label": "Sidetitel", "required": true, "maxLength": 70},
+    {"key": "template", "type": "select", "label": "Skabelon", "default": "template-normal", "options": [{"value": "template-normal", "label": "Normal"}, {"value": "template-pleasure", "label": "Pleasure"}, {"value": "template-advertorial", "label": "Advertorial"}, {"value": "template-nicher-forsikringsbrief", "label": "Forsikringsbrief"}, {"value": "template-nicher-advisorbrief", "label": "Advisorbrief"}, {"value": "template-nicher-securitybrief", "label": "SecurityBrief"}, {"value": "template-nicher-advokatbrief", "label": "Advokatbrief"}]},
+    {"key": "language", "type": "select", "label": "Sprog", "default": "da", "options": [{"value": "da", "label": "Dansk"}, {"value": "en", "label": "Engelsk"}]},
+    {"key": "description", "type": "textarea", "label": "Meta-beskrivelse", "maxLength": 160},
+    {"key": "keywords", "type": "tags", "label": "Meta-nøgleord"},
+    {"key": "metaCustom", "type": "list", "label": "Egne meta-tags", "itemLabel": "name", "help": "Ekstra <meta name=… content=…> i sidens head.", "fields": [
+        {"key": "name", "type": "text", "label": "Navn", "required": true},
+        {"key": "content", "type": "text", "label": "Indhold"}
+      ] },
+    {"key": "noindex", "type": "boolean", "label": "Skjul for søgemaskiner", "default": false},
+    {"key": "hideTopBanner", "type": "boolean", "label": "Skjul topbanner", "default": false},
+    {"key": "hideSiteHeader", "type": "boolean", "label": "Skjul sidehoved", "default": false},
+    {"key": "hideSiteFooter", "type": "boolean", "label": "Skjul sidefod", "default": false},
+    {"key": "breaking", "type": "boolean", "label": "Vis breaking", "default": false, "help": "Viser breaking-nyheder øverst på siden."},
+    {"key": "breakingElementId", "type": "text", "label": "Breaking element-id", "showWhen": {"field": "breaking", "equals": true}},
+    {"key": "anchorMenu", "type": "list", "label": "Ankermenu", "itemLabel": "label", "help": "Menu med links til sektioner på siden. Sæt «Anker-id» på sektionerne.", "fields": [
+        {"key": "label", "type": "text", "label": "Tekst", "required": true},
+        {"key": "anchor", "type": "text", "label": "Anker-id", "required": true, "pattern": "[a-z0-9-]+", "help": "Små bogstaver, tal og bindestreg"}
+      ] },
+    {"key": "reviewBy", "type": "date", "label": "Gennemgå senest", "help": "Hvornår siden skal tjekkes igen"}
   ]
 }

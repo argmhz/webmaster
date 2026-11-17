@@ -1,0 +1,6 @@
+{
+  "type": "sponsoredTag", "source": "editorial", "label": "Sponsoreret tag", "description": "Sponsoreret indhold med et bestemt tag.",
+  "fields": [
+    {"key": "tag", "type": "text", "label": "Tag", "required": true}
+  ]
+}
