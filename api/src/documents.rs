@@ -2,15 +2,26 @@
 //! Kladden gemmes løbende; publicering laver en uforanderlig version.
 
 use crate::{
+    auth::{require, Role, User},
     defs,
     error::{AppError, R},
-    ids, refs, validate, AppState,
+    ids, refs, validate,
+    webhook::{Event, Webhooks},
+    AppState,
 };
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+
+/// Globals styrer hele sitet og må kun ændres af admins.
+fn require_kind(u: &User, kind: &str) -> R<()> {
+    if kind == "global" {
+        require(u, Role::Admin)?;
+    }
+    Ok(())
+}
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -39,6 +50,8 @@ pub struct Doc {
     pub doc_type: Option<String>,
     pub name: String,
     pub updated_at: DateTime<Utc>,
+    /// E-mail på den, der sidst gemte kladden.
+    pub updated_by: String,
     #[ts(type = "number | null")]
     pub published_version: Option<i64>,
     pub published_at: Option<DateTime<Utc>>,
@@ -53,7 +66,7 @@ pub struct Doc {
 
 fn select(with_draft: bool) -> String {
     format!(
-        "select d.id, d.kind, d.type as doc_type, d.name, d.updated_at,
+        "select d.id, d.kind, d.type as doc_type, d.name, d.updated_at, d.updated_by,
             p.version_id as published_version, v.published_at,
             (p.version_id is not null and (v.data is distinct from d.draft or v.name is distinct from d.name)) as changed,
             (select count(*) from refs r where r.to_id = d.id) as used_by,
@@ -102,7 +115,8 @@ pub struct CreateDoc {
     draft: Option<Value>,
 }
 
-pub async fn create(State(s): State<AppState>, Json(b): Json<CreateDoc>) -> R<Json<Doc>> {
+pub async fn create(State(s): State<AppState>, Extension(u): Extension<User>, Json(b): Json<CreateDoc>) -> R<Json<Doc>> {
+    require_kind(&u, &b.kind)?;
     if !matches!(b.kind.as_str(), "datasource" | "schedule" | "access" | "global") {
         return Err(AppError::bad("Sider oprettes i sidetræet"));
     }
@@ -125,12 +139,13 @@ pub async fn create(State(s): State<AppState>, Json(b): Json<CreateDoc>) -> R<Js
     }
     let draft = b.draft.unwrap_or_else(|| json!({ "fields": {} }));
     let mut tx = s.db.begin().await?;
-    sqlx::query("insert into documents (id, kind, type, name, draft) values ($1, $2, $3, $4, $5)")
+    sqlx::query("insert into documents (id, kind, type, name, draft, updated_by) values ($1, $2, $3, $4, $5, $6)")
         .bind(&id)
         .bind(&b.kind)
         .bind(&b.doc_type)
         .bind(b.name.trim())
         .bind(&draft)
+        .bind(&u.email)
         .execute(&mut *tx)
         .await?;
     refs::save(&mut tx, &id, &draft).await?;
@@ -144,13 +159,15 @@ pub struct SaveDoc {
     draft: Option<Value>,
 }
 
-pub async fn save(State(s): State<AppState>, Path(id): Path<String>, Json(b): Json<SaveDoc>) -> R<Json<Doc>> {
+pub async fn save(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>, Json(b): Json<SaveDoc>) -> R<Json<Doc>> {
     let mut tx = s.db.begin().await?;
     let kind: Option<String> = sqlx::query_scalar("select kind from documents where id = $1 for update")
         .bind(&id)
         .fetch_optional(&mut *tx)
         .await?;
     let Some(kind) = kind else { return Err(AppError::not_found("Dokumentet")) };
+    require_kind(&u, &kind)?;
+    sqlx::query("update documents set updated_by = $2 where id = $1").bind(&id).bind(&u.email).execute(&mut *tx).await?;
 
     if let Some(name) = &b.name {
         if kind == "page" {
@@ -174,8 +191,10 @@ pub async fn save(State(s): State<AppState>, Path(id): Path<String>, Json(b): Js
     Ok(Json(one(&s.db, &id).await?))
 }
 
-pub async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> R<StatusCode> {
+pub async fn remove(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>) -> R<StatusCode> {
+    require(&u, Role::Publisher)?;
     let doc = one(&s.db, &id).await?;
+    require_kind(&u, &doc.kind)?;
     if doc.kind == "page" {
         return Err(AppError::bad("Sider slettes i sidetræet"));
     }
@@ -186,10 +205,17 @@ pub async fn remove(State(s): State<AppState>, Path(id): Path<String>) -> R<Stat
         )));
     }
     sqlx::query("delete from documents where id = $1").bind(&id).execute(&s.db).await?;
+    tracing::info!(document = %id, by = u.email, "slettet");
+    if doc.published_version.is_some() {
+        s.webhooks.send(Webhooks::body(Event::Delete, Some(&id), Some(&doc.kind), doc.doc_type.as_deref(), vec![], &u.email));
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn publish(State(s): State<AppState>, Path(id): Path<String>) -> R<Json<Doc>> {
+pub async fn publish(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>) -> R<Json<Doc>> {
+    require(&u, Role::Publisher)?;
+    let doc = one(&s.db, &id).await?;
+    require_kind(&u, &doc.kind)?;
     let issues = validate::stored(&s, &id).await?;
     let errors = issues.iter().filter(|i| i.level == validate::Level::Error).count();
     if errors > 0 {
@@ -207,11 +233,12 @@ pub async fn publish(State(s): State<AppState>, Path(id): Path<String>) -> R<Jso
             .await?;
     let Some((name, ty, draft)) = row else { return Err(AppError::not_found("Dokumentet")) };
     let version_id: i64 =
-        sqlx::query_scalar("insert into versions (document_id, name, type, data) values ($1, $2, $3, $4) returning id")
+        sqlx::query_scalar("insert into versions (document_id, name, type, data, published_by) values ($1, $2, $3, $4, $5) returning id")
             .bind(&id)
             .bind(&name)
             .bind(&ty)
             .bind(&draft)
+            .bind(&u.email)
             .fetch_one(&mut *tx)
             .await?;
     sqlx::query(
@@ -223,8 +250,9 @@ pub async fn publish(State(s): State<AppState>, Path(id): Path<String>) -> R<Jso
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
-    // Her ville webmasteren sende et event/webhook, så sitet kan invalidere sin cache.
-    tracing::info!(document = %id, version = version_id, "publiceret");
+    tracing::info!(document = %id, version = version_id, by = u.email, "publiceret");
+    let paths = affected_paths(&s.db, &id, &doc.kind).await?;
+    s.webhooks.send(Webhooks::body(Event::Publish, Some(&id), Some(&doc.kind), ty.as_deref(), paths, &u.email));
     Ok(Json(one(&s.db, &id).await?))
 }
 
@@ -249,19 +277,22 @@ pub async fn versions(State(s): State<AppState>, Path(id): Path<String>) -> R<Js
 }
 
 /// Lægger en tidligere version tilbage som kladde. Den skal publiceres igen for at gå live.
-pub async fn restore(State(s): State<AppState>, Path((id, version)): Path<(String, i64)>) -> R<Json<Doc>> {
+pub async fn restore(State(s): State<AppState>, Extension(u): Extension<User>, Path((id, version)): Path<(String, i64)>) -> R<Json<Doc>> {
+    require_kind(&u, &one(&s.db, &id).await?.kind)?;
     let mut tx = s.db.begin().await?;
     let data: Option<Value> = sqlx::query_scalar(
         "update documents d
             set draft = v.data,
                 name = case when d.kind = 'page' then d.name else v.name end,
-                updated_at = now()
+                updated_at = now(),
+                updated_by = $3
            from versions v
           where v.id = $2 and v.document_id = $1 and d.id = $1
       returning d.draft",
     )
     .bind(&id)
     .bind(version)
+    .bind(&u.email)
     .fetch_optional(&mut *tx)
     .await?;
     let Some(data) = data else { return Err(AppError::not_found("Versionen")) };
@@ -288,4 +319,21 @@ pub async fn used_by(State(s): State<AppState>, Path(id): Path<String>) -> R<Jso
     .fetch_all(&s.db)
     .await?;
     Ok(Json(rows))
+}
+
+/// Stier på sitet, der skal ryddes, når et dokument publiceres: siden selv, eller de
+/// sider, der bruger datasourcen, schedulen eller access-reglen. Tom for globals.
+async fn affected_paths(db: &sqlx::PgPool, id: &str, kind: &str) -> R<Vec<String>> {
+    let ids: Vec<String> = match kind {
+        "page" => vec![id.to_string()],
+        "global" => vec![],
+        _ => sqlx::query_scalar("select r.from_id from refs r join documents d on d.id = r.from_id where r.to_id = $1 and d.kind = 'page'")
+            .bind(id)
+            .fetch_all(db)
+            .await?,
+    };
+    let paths = crate::site::all_paths(db).await?;
+    let mut out: Vec<String> = ids.iter().filter_map(|i| paths.get(i).cloned()).collect();
+    out.sort();
+    Ok(out)
 }

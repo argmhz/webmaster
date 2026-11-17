@@ -10,8 +10,8 @@ Denne fil er arbejdsplanen for webmasteren. Den er skrevet, så man kan starte e
 | 2. Felttyper | Nye felttyper, `showWhen`, links til sider, group/list | Færdig, på main (dog ikke mediearkiv, artikelvælger og elementer i elementer) |
 | 3, del 1 | Valgmuligheder fra services (`optionsFrom`, `services.json`, mock) | Færdig, på main (f5f0793) |
 | Statamic-elementer | Elementer, datasources, access og globals fra frontend-webmaster-2021 (se nedenfor) | Færdig, på main (PR #1) |
-| 3, del 2 | Udsnit af data fra en datasource i editoren (`previews.rs`, `DatasourcePreview.tsx`) | Færdig, på grenen `fase-3-preview` |
-| **4. Drift og sikkerhed** | **Login, rettigheder, preview-token, webhook** | **Næste skridt (skal planlægges)** |
+| 3, del 2 | Udsnit af data fra en datasource i editoren (`previews.rs`, `DatasourcePreview.tsx`) | Færdig, på main (PR #2) |
+| 4. Drift og sikkerhed | Login, rettigheder, preview-token, webhook | Færdig, på grenen `fase-4-drift` |
 | 5. Editor-workflow | Bedre arbejdsgang for redaktørerne | Ikke startet |
 
 ## Statamic-elementer (gjort)
@@ -53,6 +53,49 @@ Ikke taget med endnu: gruppe D (dæk, video, kort/data, Investor Academy, Event 
   - `editor-dev` er en ekstra profil på port 5173.
 - **Tests:** Test aldrig mod brugerens database. Brug en separat database, fx `webmaster_test` i en container på port 8089, og fjern den bagefter.
 
+## Fase 4: drift og sikkerhed (gjort, grenen `fase-4-drift`)
+
+Brugerens valg (17.11.2026): egne brugere med adgangskode, tre roller, delt hemmelighed til preview og webhook til cache-rydning.
+
+**Brugere og login**
+- Migration 0003: `users` (id `us_…`, e-mail, navn, rolle, argon2-hash, aktiv, sidste login) og `sessions` (sha256 af tokenet, udløb).
+- `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` og `POST /api/auth/password` (egen adgangskode).
+- Sessionen ligger i cookien `wm_session` (HttpOnly, SameSite=Lax og Secure, når `COOKIE_SECURE=true`) og gælder i 14 dage.
+- Alle `/api`-ruter kræver login undtagen `/api/auth/login` og `/api/site/*`. Ændringer kræver `Content-Type: application/json`, så en formular på et andet site ikke kan sende dem.
+- Den første admin oprettes ved opstart fra `ADMIN_EMAIL` og `ADMIN_PASSWORD`, hvis der ingen brugere er. Lokalt står de i docker-compose.
+- `updated_by` og `published_by` bliver brugerens e-mail.
+
+**Roller**
+| Rolle | Må |
+|---|---|
+| `editor` | Læse alt, oprette og redigere kladder og sider, gendanne versioner. |
+| `publisher` | Også publicere, slette dokumenter og flytte, omdøbe og slette sider i træet. |
+| `admin` | Også brugere, redirects og globals. |
+
+**Preview-token**
+- `?preview=true` på `/api/site/*` kræver headeren `X-Preview-Token` med værdien fra `SITE_PREVIEW_TOKEN` eller en gyldig session (editorens egen visning). Ellers 401.
+
+**Webhook**
+- `PUBLISH_WEBHOOK_URLS` (kommasepareret) og `PUBLISH_WEBHOOK_SECRET`.
+- Kaldes ved publicering, sletning, ændringer i træet og redirects med `{ event, id, kind, type, paths, at }`.
+- Signeret med HMAC-SHA256 i `X-Webmaster-Signature: sha256=…`.
+- Sendes i baggrunden og prøves op til 3 gange. Publicering venter aldrig på den.
+
+**Editor**
+- Loginside, brugermenu (navn, rolle, skift adgangskode, log ud) og fanen Brugere for admins.
+- Knapper, som rollen ikke må bruge, er deaktiverede med en forklaring. API'et tjekker altid selv.
+
+**Lavet sådan** (se README.md, "Brugere og roller" og "Webhook")
+- Backend: `api/src/auth.rs` (brugere, sessioner, roller, CSRF-header, preview-adgang), `api/src/webhook.rs` og migration `0003_users.sql`. Handlerne får `Extension<User>`.
+- Faner for Globals, Redirects og Brugere vises kun for admins.
+- Login spærres i 15 minutter efter 5 forkerte forsøg på samme e-mail. Spærringen ligger i hukommelsen og nulstilles ved genstart.
+- Når sessionen udløber, viser editoren loginsiden. Sider, der var åbne, hentes igen efter login, men ændringer, der ikke var gemt, kan gå tabt.
+
+**Næste skridt** (skal aftales med brugeren)
+- Fase 5: editor-workflow.
+- Resten af fase 2: mediearkiv, artikelvælger og elementer i elementer.
+- Generere typerne for sidekladden med ts-rs.
+
 ## Fase 3, del 2: udsnit af data (gjort)
 
 Se manualen, afsnittet "Udsnit af data" i `definitions/README.md`.
@@ -73,10 +116,7 @@ Svar på de åbne spørgsmål er antaget: udsnittet vises automatisk med debounc
 - Artikelvælger, så `articlePicks` vælger artikler med søgning i stedet for komma-separerede id'er. Den kan genbruge preview-mekanismen.
 - Elementer inde i elementer.
 
-**Fase 4: drift og sikkerhed**
-- Brugere, login og rettigheder. Alt gemmes i dag som `webmaster`.
-- Preview-token. `?preview=true` er åben i dag.
-- Webhook ved publicering.
+**Rest fra fase 4**
 - Typer for selve sidekladden (`PageDraft`, `Sec`, `El` i `editor/src/api.ts`) skal genereres med ts-rs i stedet for at være skrevet i hånden.
 
 **Fase 5: editor-workflow**

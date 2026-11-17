@@ -1,7 +1,7 @@
 import { For, Show } from "solid-js";
 import { api, type TreeNode } from "./api";
 import { clearMarks, endDrag, getDrag, showLine, startDrag } from "./dnd";
-import { errMsg, isDescendant, navigate, pathOf, refreshTree, status, toast, tree } from "./store";
+import { can, errMsg, isDescendant, needs, navigate, pathOf, refreshTree, status, toast, tree } from "./store";
 
 const children = (pid: string | null) =>
   tree()
@@ -90,7 +90,7 @@ export function TreePanel(p: { selected?: string }) {
         <span>Sidetræ</span>
         <span class="spacer" />
         <button class="ghost" title="Ny underside til den valgte side" onClick={addChild}>+ Side</button>
-        <button class="ghost danger" title="Slet den valgte side" disabled={selectedIsRoot()} onClick={remove}>Slet</button>
+        <button class="ghost danger" title={needs("publisher") || "Slet den valgte side"} disabled={selectedIsRoot() || !can("publisher")} onClick={remove}>Slet</button>
       </div>
       <div class="panel-b">
         <ul class="tree">
@@ -110,12 +110,12 @@ function TreeItem(p: { n: TreeNode; selected?: string }) {
       <div
         class="node"
         data-node={p.n.id}
-        draggable={!!p.n.parent_id}
+        draggable={!!p.n.parent_id && can("publisher")}
         classList={{ active: p.selected === p.n.id }}
         onClick={() => navigate("pages", p.n.id)}
         onDragStart={(e) => startDrag(e, { kind: "node", id: p.n.id })}
       >
-        <span class="grip" aria-hidden="true">{p.n.parent_id ? "⠿" : ""}</span>
+        <span class="grip" aria-hidden="true">{p.n.parent_id && can("publisher") ? "⠿" : ""}</span>
         <span class={`dot ${st().cls}`} title={st().label} />
         <span class="tx">
           <span class="nm">{p.n.title}</span>

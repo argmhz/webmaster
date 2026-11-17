@@ -7,6 +7,7 @@ import { DbIcon } from "./icons";
 import {
   createAutosave, defaultsFor, docById, errMsg, library, navigate, refreshLibrary, refType, refTypes, status, toast,
   touchRecent, typeLabel,
+  can, needs,
 } from "./store";
 import { Typeahead } from "./Typeahead";
 
@@ -175,7 +176,7 @@ function SharedDsForm(p: { doc: Doc; onLocalCopy: (type: string, fields: Record<
         <span class={`status ${st().cls}`}><span class={`dot ${st().cls}`} />{st().label}</span>
         <span class="spacer" />
         <button onClick={() => p.onLocalCopy(p.doc.type ?? "", structuredClone(unwrap(fields)))}>Lav lokal kopi</button>
-        <button class="primary" disabled={meta().published_version != null && !meta().changed} onClick={publish}>Publicér</button>
+        <button class="primary" disabled={(meta().published_version != null && !meta().changed) || !can("publisher")} title={needs("publisher")} onClick={publish}>Publicér</button>
       </div>
     </div>
   );

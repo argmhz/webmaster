@@ -1,9 +1,17 @@
 // Global tilstand: definitioner, sidetræ, bibliotek, routing, gem-status og "senest brugt".
 
 import { createSignal, onCleanup } from "solid-js";
-import { api, type OptionList, type Defs, type Doc, type FieldDef, type RefKind, type RefTypeDef, type TreeNode } from "./api";
+import { api, type OptionList, type Defs, type Doc, type FieldDef, type RefKind, type RefTypeDef, type Role, type TreeNode, type User } from "./api";
 
 export const [defs, setDefs] = createSignal<Defs>();
+/** Den indloggede bruger. `undefined`: ikke tjekket endnu. `null`: ikke logget ind. */
+export const [user, setUser] = createSignal<User | null>();
+const RANK: Record<Role, number> = { editor: 0, publisher: 1, admin: 2 };
+/** Har brugeren mindst rollen? API'et tjekker altid selv; det her styrer kun knapperne. */
+export const can = (r: Role) => !!user() && RANK[user()!.role] >= RANK[r];
+export const ROLE_LABEL: Record<Role, string> = { editor: "Redaktør", publisher: "Udgiver", admin: "Admin" };
+/** Forklaring på en deaktiveret knap. */
+export const needs = (r: Role) => (can(r) ? "" : `Kræver rollen ${ROLE_LABEL[r].toLowerCase()}`);
 export const [tree, setTree] = createSignal<TreeNode[]>([]);
 export const [library, setLibrary] = createSignal<Doc[]>([]);
 
@@ -11,8 +19,8 @@ export const refreshTree = async () => setTree(await api.tree());
 export const refreshLibrary = async () => setLibrary((await api.docs()).filter((d) => d.kind !== "page"));
 
 /* ---------- routing via #hash, så reload bevarer stedet ---------- */
-export type View = "pages" | RefKind | "redirects" | "definitions";
-const VIEWS: View[] = ["pages", "datasource", "schedule", "access", "global", "redirects", "definitions"];
+export type View = "pages" | RefKind | "redirects" | "definitions" | "users";
+const VIEWS: View[] = ["pages", "datasource", "schedule", "access", "global", "redirects", "definitions", "users"];
 export interface Route { view: View; id?: string }
 function parseHash(): Route {
   const [v, id] = location.hash.slice(1).split("/");

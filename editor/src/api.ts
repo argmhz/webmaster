@@ -26,6 +26,9 @@ export type { ServiceDef } from "./gen/ServiceDef";
 import type { OptionList } from "./gen/OptionList";
 export type { OptionList };
 export type { RefTypeDef } from "./gen/RefTypeDef";
+import type { Role } from "./gen/Role";
+import type { User } from "./gen/User";
+export type { Role, User };
 import type { Preview } from "./gen/Preview";
 export type { Preview };
 export type { PreviewItem } from "./gen/PreviewItem";
@@ -52,12 +55,20 @@ export class ApiError extends Error {
   }
 }
 
+/** Kaldes, når API'et svarer 401 (sessionen er udløbet eller logget ud et andet sted). */
+let onUnauthorized: () => void = () => {};
+export const setOnUnauthorized = (f: () => void) => (onUnauthorized = f);
+
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { "x-webmaster": "1" };
+  if (body !== undefined) headers["content-type"] = "application/json";
   const r = await fetch("/api" + url, {
     method,
-    headers: body !== undefined ? { "content-type": "application/json" } : {},
+    headers,
+    credentials: "same-origin",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  if (r.status === 401 && url !== "/auth/login") onUnauthorized();
   if (!r.ok) {
     let msg = `${r.status} ${r.statusText}`;
     let issues: Issue[] | undefined;
@@ -74,6 +85,15 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
 }
 
 export const api = {
+  login: (email: string, password: string) => req<User>("POST", "/auth/login", { email, password }),
+  logout: () => req<void>("POST", "/auth/logout"),
+  me: () => req<User>("GET", "/auth/me"),
+  changePassword: (current: string, next: string) => req<void>("POST", "/auth/password", { current, new: next }),
+  users: () => req<User[]>("GET", "/users"),
+  createUser: (body: { email: string; name: string; role: Role; password: string }) => req<User>("POST", "/users", body),
+  updateUser: (id: string, patch: { name?: string; role?: Role; active?: boolean; password?: string }) =>
+    req<User>("PATCH", `/users/${id}`, patch),
+
   defs: () => req<Defs>("GET", "/definitions"),
 
   /** Valgmuligheder til `optionsFrom`, fx ("editorial", "sections"). Svarer altid, også når servicen er nede. */

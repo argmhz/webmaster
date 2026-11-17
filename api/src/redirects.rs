@@ -25,7 +25,12 @@ pub async fn list(State(s): State<AppState>) -> R<Json<Vec<Redirect>>> {
 }
 
 /// Erstatter hele listen. Redirects går live med det samme.
-pub async fn replace(State(s): State<AppState>, Json(list): Json<Vec<Redirect>>) -> R<Json<Vec<Redirect>>> {
+pub async fn replace(
+    State(s): State<AppState>,
+    axum::Extension(u): axum::Extension<crate::auth::User>,
+    Json(list): Json<Vec<Redirect>>,
+) -> R<Json<Vec<Redirect>>> {
+    crate::auth::require(&u, crate::auth::Role::Admin)?;
     let mut seen = HashSet::new();
     for r in &list {
         if !r.from_path.starts_with('/') {
@@ -53,6 +58,10 @@ pub async fn replace(State(s): State<AppState>, Json(list): Json<Vec<Redirect>>)
             .await?;
     }
     tx.commit().await?;
+    tracing::info!(count = list.len(), by = u.email, "redirects gemt");
+    let mut paths: Vec<String> = list.iter().map(|r| r.from_path.clone()).collect();
+    paths.sort();
+    s.webhooks.send(crate::webhook::Webhooks::body(crate::webhook::Event::Redirects, None, None, None, paths, &u.email));
     list_inner(&s.db).await.map(Json)
 }
 

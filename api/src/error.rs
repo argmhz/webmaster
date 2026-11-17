@@ -7,6 +7,7 @@ use serde_json::{json, Value};
 
 /// Fejl der sendes til klienten som `{ "error": "...", "issues": [...] }`.
 /// `issues` er kun med, når en kladde ikke kan publiceres.
+#[derive(Debug)]
 pub struct AppError(pub StatusCode, pub String, pub Option<Value>);
 
 pub type R<T> = Result<T, AppError>;
