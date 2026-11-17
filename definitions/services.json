@@ -1,0 +1,16 @@
+{
+  "editorial": {
+    "baseUrl": "${EDITORIAL_URL}",
+    "headers": { "Authorization": "Bearer ${EDITORIAL_TOKEN}" },
+    "lists": {
+      "sections": { "path": "/sections", "items": "/data", "value": "/slug", "label": "/name" }
+    }
+  },
+  "customer": {
+    "baseUrl": "${CUSTOMER_URL}",
+    "cacheSeconds": 600,
+    "lists": {
+      "entitlements": { "path": "/entitlements", "items": "/entitlements", "value": "/code", "label": "/title" }
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "entitlements": [
+    {
+      "code": "BRADVIID",
+      "title": "BRADVIID (mock)"
+    },
+    {
+      "code": "AO2ID",
+      "title": "AO2ID (mock)"
+    },
+    {
+      "code": "APID",
+      "title": "APID (mock)"
+    },
+    {
+      "code": "BOID",
+      "title": "BOID (mock)"
+    },
+    {
+      "code": "BLID",
+      "title": "BLID (mock)"
+    },
+    {
+      "code": "BPID",
+      "title": "BPID (mock)"
+    },
+    {
+      "code": "PFID",
+      "title": "PFID (mock)"
+    },
+    {
+      "code": "EAID",
+      "title": "EAID (mock)"
+    },
+    {
+      "code": "EAAID",
+      "title": "EAAID (mock)"
+    },
+    {
+      "code": "BRFORSID",
+      "title": "BRFORSID (mock)"
+    },
+    {
+      "code": "INID",
+      "title": "INID (mock)"
+    },
+    {
+      "code": "MAID",
+      "title": "MAID (mock)"
+    },
+    {
+      "code": "PIID",
+      "title": "PIID (mock)"
+    },
+    {
+      "code": "PSID",
+      "title": "PSID (mock)"
+    },
+    {
+      "code": "RKID",
+      "title": "RKID (mock)"
+    },
+    {
+      "code": "SAID",
+      "title": "SAID (mock)"
+    },
+    {
+      "code": "BRSECUID",
+      "title": "BRSECUID (mock)"
+    },
+    {
+      "code": "IAM1",
+      "title": "IAM1 (mock)"
+    },
+    {
+      "code": "IAM2",
+      "title": "IAM2 (mock)"
+    },
+    {
+      "code": "IAM3",
+      "title": "IAM3 (mock)"
+    },
+    {
+      "code": "IAM4",
+      "title": "IAM4 (mock)"
+    },
+    {
+      "code": "IAM5",
+      "title": "IAM5 (mock)"
+    },
+    {
+      "code": "IAM6",
+      "title": "IAM6 (mock)"
+    }
+  ]
+}

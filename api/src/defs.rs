@@ -9,7 +9,8 @@ use crate::{error::R, AppState};
 use axum::{extract::State, Json};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeSet, HashSet};
+use crate::services::ServiceDef;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 use ts_rs::TS;
 
@@ -239,6 +240,8 @@ pub struct Defs {
     pub datasources: Vec<RefTypeDef>,
     pub schedules: Vec<RefTypeDef>,
     pub access: Vec<RefTypeDef>,
+    /// Fra services.json. Kun skabelonerne: værdier fra miljøvariabler (fx tokens) er ikke med.
+    pub services: BTreeMap<String, ServiceDef>,
     pub problems: Vec<DefProblem>,
 }
 
@@ -332,10 +335,23 @@ pub fn load(dir: &Path) -> Defs {
     let schedules = l.dir::<RefTypeDef>("schedules");
     let access = l.dir::<RefTypeDef>("access");
 
-    let ds_types: HashSet<String> = datasources.iter().map(|(_, d)| d.def_type.clone()).collect();
+    let services: BTreeMap<String, ServiceDef> = if dir.join("services.json").exists() {
+        l.file(&dir.join("services.json")).unwrap_or_default()
+    } else {
+        BTreeMap::new()
+    };
+    for (name, svc) in &services {
+        for m in crate::services::check(name, svc) {
+            l.problem("services.json", m);
+        }
+    }
+    let known = Known {
+        ds_types: datasources.iter().map(|(_, d)| d.def_type.clone()).collect(),
+        lists: services.iter().flat_map(|(n, s)| s.lists.keys().map(move |k| format!("{n}:{k}"))).collect(),
+    };
 
-    check_fields(&mut l, "page.json", &page.fields, &ds_types);
-    check_fields(&mut l, "section.json", &section.fields, &ds_types);
+    check_fields(&mut l, "page.json", &page.fields, &known);
+    check_fields(&mut l, "section.json", &section.fields, &known);
     check_layouts(&mut l, &layouts);
 
     let elements = dedupe(&mut l, elements, |e| &e.def_type);
@@ -344,7 +360,7 @@ pub fn load(dir: &Path) -> Defs {
         if e.version == 0 {
             l.problem(f, "version skal være 1 eller højere");
         }
-        check_fields(&mut l, f, &e.fields, &ds_types);
+        check_fields(&mut l, f, &e.fields, &known);
     }
     let mut lists = vec![];
     for (kind, list) in [("datasource", datasources), ("schedule", schedules), ("access", access)] {
@@ -359,7 +375,7 @@ pub fn load(dir: &Path) -> Defs {
             if has_datasource(&d.fields) {
                 l.problem(f, "felter af typen datasource kan kun bruges på elementer, side og sektion");
             }
-            check_fields(&mut l, f, &d.fields, &ds_types);
+            check_fields(&mut l, f, &d.fields, &known);
         }
         lists.push(list.into_iter().map(|(_, d)| d).collect::<Vec<_>>());
     }
@@ -375,6 +391,7 @@ pub fn load(dir: &Path) -> Defs {
         datasources,
         schedules,
         access,
+        services,
         problems: l.problems,
     }
 }
@@ -425,11 +442,18 @@ fn check_layouts(l: &mut Loader, layouts: &[LayoutDef]) {
     }
 }
 
-fn check_fields(l: &mut Loader, file: &str, fields: &[FieldDef], ds_types: &HashSet<String>) {
-    check_fields_in(l, file, "", fields, ds_types)
+/// Det, felterne må henvise til.
+struct Known {
+    ds_types: HashSet<String>,
+    /// "service:liste" fra services.json
+    lists: HashSet<String>,
 }
 
-fn check_fields_in(l: &mut Loader, file: &str, parent: &str, fields: &[FieldDef], ds_types: &HashSet<String>) {
+fn check_fields(l: &mut Loader, file: &str, fields: &[FieldDef], known: &Known) {
+    check_fields_in(l, file, "", fields, known)
+}
+
+fn check_fields_in(l: &mut Loader, file: &str, parent: &str, fields: &[FieldDef], known: &Known) {
     use FieldType::*;
     let mut keys = BTreeSet::new();
     for fd in fields {
@@ -495,6 +519,8 @@ fn check_fields_in(l: &mut Loader, file: &str, parent: &str, fields: &[FieldDef]
         if let Some(of) = &fd.options_from {
             if !of.contains(':') {
                 bad(format!("«optionsFrom» skal have formen \"service:liste\", ikke \"{of}\""));
+            } else if !known.lists.contains(of) {
+                bad(format!("«optionsFrom» peger på «{of}», som ikke står i services.json"));
             }
         }
         if let (Some(a), Some(b)) = (fd.min, fd.max) {
@@ -527,7 +553,7 @@ fn check_fields_in(l: &mut Loader, file: &str, parent: &str, fields: &[FieldDef]
                     bad("«accepts» må ikke være tom".into());
                 }
                 for a in acc {
-                    if !ds_types.contains(a) {
+                    if !known.ds_types.contains(a) {
                         bad(format!("«accepts» nævner «{a}», som ikke er en datasource-type"));
                     }
                 }
@@ -565,7 +591,7 @@ fn check_fields_in(l: &mut Loader, file: &str, parent: &str, fields: &[FieldDef]
             }
         }
         if let Some(sub) = &fd.fields {
-            check_fields_in(l, file, &format!("{name}."), sub, ds_types);
+            check_fields_in(l, file, &format!("{name}."), sub, known);
         }
     }
 }

@@ -5,6 +5,7 @@ mod ids;
 mod redirects;
 mod refs;
 mod seed;
+mod services;
 mod site;
 mod tree;
 mod validate;
@@ -26,6 +27,7 @@ use tower_http::{
 pub struct AppState {
     pub db: sqlx::PgPool,
     pub defs_dir: PathBuf,
+    pub options: std::sync::Arc<services::OptionsCache>,
 }
 
 #[tokio::main]
@@ -51,11 +53,12 @@ async fn main() -> anyhow::Result<()> {
     for p in defs::load(&defs_dir).problems {
         tracing::warn!("definitions/{}: {}", p.file, p.message);
     }
-    let state = AppState { db, defs_dir };
+    let state = AppState { db, defs_dir, options: std::sync::Arc::new(services::OptionsCache::new()) };
 
     let api = Router::new()
         // editor
         .route("/definitions", get(defs::get_all))
+        .route("/options/:service/:list", get(services::get_options))
         .route("/tree", get(tree::list).post(tree::create))
         .route("/tree/:id", patch(tree::update).delete(tree::remove))
         .route("/tree/:id/move", post(tree::move_node))

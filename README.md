@@ -12,6 +12,7 @@ docker compose -p webmaster up --build -d
 
 - Editor og API: http://localhost:8088
 - Postgres: `localhost:5433` (bruger, kodeord og database hedder alle `webmaster`)
+- Mock af editorial og customer: http://localhost:8090. Appen virker også uden den (se [Services](definitions/README.md#services)).
 
 En tom database fyldes automatisk med eksempeldata fra `seed.json`. Start forfra med:
 
@@ -33,6 +34,7 @@ docker compose -p webmaster --profile dev up
 | `api/` | Rust (axum + sqlx). Migrationer i `api/migrations/` køres ved opstart. |
 | `editor/` | Solid.js + Vite, i samme stil som brik-editoren. Bygges ind i app-imaget og serveres af API'et. Typerne i `editor/src/gen/` genereres fra Rust med ts-rs. |
 | `seed.json` | Eksempeldata til en tom database. |
+| `mock/` | Faste JSON-svar, der efterligner editorial og customer lokalt. |
 
 ## Datamodel
 
@@ -73,4 +75,4 @@ Ved publicering logges en hændelse. Her skal der på sigt sendes en webhook ell
 - Preview-token. `?preview=true` er åben.
 - Typer for selve sidekladden (`PageDraft`, `Sec`, `El` i `editor/src/api.ts`) er stadig skrevet i hånden. API'et validerer dem som JSON.
 - Webhook ved publicering.
-- `optionsFrom` henter ikke fra editorial eller customer endnu. Editoren bruger `options` fra definitionen.
+- De rigtige adresser på editorial og customer. Lokalt bruges mock-servicen i `mock/`.

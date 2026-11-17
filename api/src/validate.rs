@@ -225,6 +225,9 @@ impl Loc {
 struct V<'a> {
     defs: &'a Defs,
     refs: &'a HashMap<String, RefInfo>,
+    /// Hentede lister for `optionsFrom` ("service:liste" → værdier). Mangler en liste,
+    /// kunne den ikke hentes, og så bruges `options` som reserve.
+    lists: &'a HashMap<String, Vec<String>>,
     out: Vec<Issue>,
 }
 
@@ -293,6 +296,9 @@ impl V<'_> {
                 self.err(loc, f, format!("{} {m}", fd.label()));
                 continue;
             }
+            if let Some(of) = &fd.options_from {
+                self.options_from(loc, &path, fd, of, v);
+            }
             match fd.field_type {
                 FieldType::Datasource => self.datasource(loc, &path, fd, v),
                 FieldType::Link => {
@@ -324,6 +330,31 @@ impl V<'_> {
             if !defs.iter().any(|d| &d.key == k) {
                 let path = format!("{prefix}{k}");
                 self.warn(loc, Some(&path), format!("feltet «{k}» findes ikke i definitionen"));
+            }
+        }
+    }
+
+    /// Tjekker værdier mod listen fra servicen. Kan den ikke hentes, tjekkes mod `options`,
+    /// og en ukendt værdi er kun en advarsel, så en service, der er nede, ikke blokerer.
+    fn options_from(&mut self, loc: &Loc, path: &str, fd: &FieldDef, of: &str, v: &Value) {
+        let values: Vec<&str> = match v {
+            Value::String(s) => vec![s.as_str()],
+            Value::Array(a) => a.iter().filter_map(Value::as_str).collect(),
+            _ => return,
+        };
+        let svc = of.split(':').next().unwrap_or(of);
+        for x in values {
+            match self.lists.get(of) {
+                Some(list) if !list.iter().any(|y| y == x) => {
+                    self.err(loc, Some(path), format!("{}: «{x}» findes ikke i {of}", fd.label()));
+                }
+                Some(_) => {}
+                None if fd.options.as_ref().is_some_and(|o| o.iter().any(|o| o.value() == x)) => {}
+                None => self.warn(
+                    loc,
+                    Some(path),
+                    format!("{}: «{x}» kunne ikke tjekkes, fordi {svc} ikke svarer, og den står ikke i reservelisten", fd.label()),
+                ),
             }
         }
     }
@@ -436,8 +467,15 @@ impl V<'_> {
 }
 
 /// Validerer en kladde. `refs` skal indeholde alle dokumenter, kladden peger på.
-pub fn document(defs: &Defs, kind: &str, doc_type: Option<&str>, draft: &Value, refs: &HashMap<String, RefInfo>) -> Vec<Issue> {
-    let mut v = V { defs, refs, out: vec![] };
+pub fn document(
+    defs: &Defs,
+    kind: &str,
+    doc_type: Option<&str>,
+    draft: &Value,
+    refs: &HashMap<String, RefInfo>,
+    lists: &HashMap<String, Vec<String>>,
+) -> Vec<Issue> {
+    let mut v = V { defs, refs, lists, out: vec![] };
     if kind == "page" {
         v.page(draft);
     } else {
@@ -477,7 +515,8 @@ pub async fn stored(s: &AppState, id: &str) -> R<Vec<Issue>> {
     let Some((kind, ty, draft)) = row else { return Err(AppError::not_found("Dokumentet")) };
     let defs = defs::load(&s.defs_dir);
     let refs = load_refs(&s.db, &draft).await?;
-    Ok(document(&defs, &kind, ty.as_deref(), &draft, &refs))
+    let lists = s.options.all_values(&defs).await;
+    Ok(document(&defs, &kind, ty.as_deref(), &draft, &refs, &lists))
 }
 
 pub async fn get_issues(State(s): State<AppState>, Path(id): Path<String>) -> R<Json<Vec<Issue>>> {
@@ -523,12 +562,12 @@ mod tests {
         }
         let mut all = vec![];
         for d in seed["documents"].as_array().unwrap() {
-            for i in document(&defs, d["kind"].as_str().unwrap(), d["type"].as_str(), &d["draft"], &refs) {
+            for i in document(&defs, d["kind"].as_str().unwrap(), d["type"].as_str(), &d["draft"], &refs, &HashMap::new()) {
                 all.push(format!("{}: {} – {}", d["id"], i.location, i.message));
             }
         }
         for p in seed["pages"].as_array().unwrap() {
-            for i in document(&defs, "page", None, &p["draft"], &refs) {
+            for i in document(&defs, "page", None, &p["draft"], &refs, &HashMap::new()) {
                 all.push(format!("{}: {} – {}", p["id"], i.location, i.message));
             }
         }
@@ -558,7 +597,7 @@ mod tests {
                 ]
             }]
         });
-        let issues = document(&defs, "page", None, &draft, &refs);
+        let issues = document(&defs, "page", None, &draft, &refs, &HashMap::new());
         let msgs: Vec<String> = issues.iter().map(|i| format!("{:?} {} – {}", i.level, i.location, i.message)).collect();
         let all = msgs.join("\n");
         let has = |s: &str| assert!(all.contains(s), "mangler «{s}» i:\n{all}");
@@ -610,7 +649,7 @@ mod tests {
                 ]
             }]
         });
-        let issues = document(&defs, "page", None, &draft, &refs);
+        let issues = document(&defs, "page", None, &draft, &refs, &HashMap::new());
         let all = issues.iter().map(|i| format!("{} [{}] – {}", i.location, i.field.as_deref().unwrap_or(""), i.message)).collect::<Vec<_>>().join("\n");
         let has = |s: &str| assert!(all.contains(s), "mangler «{s}» i:\n{all}");
         let hasnt = |s: &str| assert!(!all.contains(s), "burde ikke have «{s}» i:\n{all}");
@@ -625,6 +664,26 @@ mod tests {
         // Skjulte felter valideres ikke: link uden cta-tekst og autoplay uden karrusel
         hasnt("cta.link");
         hasnt("autoplay");
+    }
+
+    #[test]
+    fn options_from_service() {
+        let defs = defs();
+        let refs = HashMap::new();
+        let ds = |section: &str| json!({ "fields": { "section": section, "sort": "newest", "limit": 5 } });
+        let run = |draft: Value, lists: &HashMap<String, Vec<String>>| document(&defs, "datasource", Some("articleQuery"), &draft, &refs, lists);
+        let live: HashMap<String, Vec<String>> = [("editorial:sections".to_string(), vec!["sport".into(), "motor".into()])].into();
+        let none = HashMap::new();
+
+        // Listen er hentet: den gælder, også for værdier, der ikke står i reservelisten
+        assert!(run(ds("motor"), &live).is_empty());
+        let i = run(ds("kultur"), &live);
+        assert_eq!((i.len(), i[0].level), (1, Level::Error), "{i:?}");
+        assert!(i[0].message.contains("findes ikke i editorial:sections"));
+        // Listen kunne ikke hentes: reservelisten bruges, og ukendte værdier er kun en advarsel
+        assert!(run(ds("kultur"), &none).is_empty());
+        let i = run(ds("motor"), &none);
+        assert_eq!((i.len(), i[0].level), (1, Level::Warning), "{i:?}");
     }
 
     #[test]

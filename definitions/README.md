@@ -19,6 +19,7 @@ Filerne læses ved hvert kald, så en ændring slår igennem med det samme. Det 
 - [Felttyper](#felttyper)
   - [Links til sider](#links-til-sider)
   - [Gruppe og liste](#gruppe-og-liste)
+- [Services](#services)
 - [Validering](#validering)
 - [Ændringer i eksisterende definitioner](#ændringer-i-eksisterende-definitioner)
 - [Tjek før du committer](#tjek-før-du-committer)
@@ -34,6 +35,7 @@ Filerne læses ved hvert kald, så en ændring slår igennem med det samme. Det 
 | `datasources/*.json` | Én fil pr. datasource-type | [Datasources](#datasources) |
 | `schedules/*.json` | Én fil pr. schedule-type | [Schedules](#schedules) |
 | `access/*.json` | Én fil pr. access-type | [Access](#access) |
+| `services.json` | Services, som `optionsFrom` henter valgmuligheder fra. Valgfri. | [Services](#services) |
 
 Kun filer, der ender på `.json`, bliver læst. Filnavnet er ligegyldigt for systemet, men brug typenavnet, fx `elements/articleList.json` til typen `articleList`. Det er `type` inde i filen, der gælder.
 
@@ -199,13 +201,12 @@ Et felt er en linje i `fields`. Alle felter har `key` og `type`. Resten afhænge
 | `min`, `max` | `number` | Mindste og største tilladte værdi. |
 | `step` | `number` | Værdien skal gå op i `step`, regnet fra `min` (eller 0). |
 | `options` | `select`, `multiselect` (påkrævet) | De tilladte værdier. Se [Valgmuligheder](#valgmuligheder). |
-| `optionsFrom` | `select`, `multiselect` | Henter valgmulighederne fra en anden service, skrevet som `"service:liste"`, fx `"editorial:sections"`. Se note nedenfor. |
+| `optionsFrom` | `select`, `multiselect` | Henter valgmulighederne fra en anden service, skrevet som `"service:liste"`, fx `"editorial:sections"`. Listen skal stå i [services.json](#services). `options` er stadig påkrævet og bruges som reserveliste. |
 | `minItems`, `maxItems` | `multiselect`, `list` | Mindste og største antal valgte værdier eller punkter. |
 | `accepts` | `datasource` (påkrævet) | De datasource-typer, feltet tager imod. |
 | `fields` | `group`, `list` (påkrævet) | Underfelterne. De har de samme muligheder som alle andre felter og kan selv være `group` eller `list`. |
 | `itemLabel` | `list` | Nøglen på det underfelt, hvis værdi bruges som overskrift på hvert punkt i editoren og i fejlbeskeder. |
 
-> **Om `optionsFrom`.** Den henter ikke noget endnu. Indtil den gør, viser editoren `options`, og valideringen accepterer også andre værdier end dem i `options`, fordi listen fra servicen kan være længere.
 
 ### Valgmuligheder
 
@@ -284,6 +285,57 @@ Fejl i underfelter peger på stien til feltet, fx `links.2.label` og `Linkliste 
 
 En ukendt felttype er en fejl i definitionen, og filen bliver sprunget over. Hvis du har brug for en ny type, skal den laves i både API'et (`api/src/defs.rs` og `api/src/validate.rs`) og editoren (`editor/src/FieldEditor.tsx`).
 
+## Services
+
+`optionsFrom` henter valgmuligheder fra andre services, fx sektionerne fra editorial. `services.json` beskriver, hvordan en liste hentes og læses:
+
+```json
+{
+  "editorial": {
+    "baseUrl": "${EDITORIAL_URL}",
+    "headers": { "Authorization": "Bearer ${EDITORIAL_TOKEN}" },
+    "cacheSeconds": 300,
+    "lists": {
+      "sections": { "path": "/sections", "items": "/data", "value": "/slug", "label": "/name" }
+    }
+  }
+}
+```
+
+Det giver `"optionsFrom": "editorial:sections"`. API'et kalder `GET ${EDITORIAL_URL}/sections` og forventer fx `{ "data": [{ "slug": "sport", "name": "Sport" }] }`.
+
+| Nøgle | Betydning |
+|---|---|
+| `baseUrl` | Adressen på servicen. `${NAVN}` erstattes med miljøvariablen `NAVN`, så adresser og nøgler ikke står i git. |
+| `headers` | Headers på hvert kald, fx en token. Kan også bruge `${NAVN}`. Valgfri. |
+| `cacheSeconds` | Hvor længe en hentet liste bruges, før den hentes igen. Standard 300. |
+| `lists.<navn>.path` | Stien efter `baseUrl`. |
+| `lists.<navn>.items` | [JSON-pointer](https://www.rfc-editor.org/rfc/rfc6901) til listen i svaret, fx `/data`. Udelad den, hvis svaret selv er listen. |
+| `lists.<navn>.value` | JSON-pointer til værdien i hvert punkt, fx `/slug`. Udelad den, hvis punkterne selv er værdierne (`["a", "b"]`). Tal bliver til tekst. |
+| `lists.<navn>.label` | JSON-pointer til teksten i hvert punkt, fx `/name`. Udelad den, så bruges værdien. |
+
+### Webmasteren afhænger ikke af servicene
+
+Webmasteren skal virke, selv når en service er nede, langsom eller slet ikke sat op:
+
+| Situation | Hvad der sker |
+|---|---|
+| Listen er hentet inden for `cacheSeconds` | Den bruges. Status `fresh`. |
+| Servicen svarer ikke, men listen har været hentet | Den seneste liste, der virkede, bruges. Status `stale`. |
+| Listen har aldrig kunnet hentes | Feltets egne `options` bruges. Status `fallback`. |
+| En miljøvariabel i `baseUrl` eller `headers` mangler | Servicen regnes som ikke sat op, og `options` bruges. |
+
+- Et kald venter højst 3 sekunder. Efter et fejlet kald går der 30 sekunder, før den prøves igen, så en service, der er nede, ikke gør editoren langsom.
+- Under feltet i editoren står, hvor listen kommer fra. Under fanen **Definitioner › services.json** er der et overblik over alle lister, deres status, og hvilke felter der bruger dem.
+- Har et felt over 15 valgmuligheder, bliver det til et søgefelt i stedet for en dropdown eller chips.
+- En værdi, der er valgt, men ikke står i listen, vises stadig som "(findes ikke i listen)", så den kan fjernes.
+
+Derfor er `options` påkrævet, også når `optionsFrom` er sat. Hold reservelisten nogenlunde opdateret med de vigtigste værdier.
+
+`GET /api/options/<service>/<liste>` giver `{ status, items, fetchedAt, error }`. Ved `fallback` er `items` `null`.
+
+Lokalt kører en mock af editorial og customer i docker-compose (mappen `mock/`). Stop den med `docker compose -p webmaster stop mock` for at se reservelisterne i brug.
+
 ## Validering
 
 Det tjekkes to steder.
@@ -305,6 +357,7 @@ Det her bliver tjekket:
 - at `pattern` er et gyldigt regulært udtryk,
 - at `accepts` kun nævner datasource-typer, der findes,
 - at `itemLabel` er et af underfelterne, og at `showWhen` peger på et felt ved siden af,
+- at `optionsFrom` peger på en liste i `services.json`, og at stierne i `services.json` er gyldige,
 - at `default` er gyldig for feltet,
 - at datasource-typer har `source`, og at andre typer ikke har den,
 - at layouts har kolonner, og at bredderne giver 12.
@@ -317,8 +370,8 @@ Det her bliver tjekket:
 
 | Niveau | Eksempler | Blokerer publicering |
 |---|---|---|
-| `error` | Et påkrævet felt er tomt. En værdi er ugyldig (også inde i grupper og lister). Et link peger på en side, der ikke findes eller ikke er publiceret. En element-, datasource-, schedule- eller access-type findes ikke længere. En reference peger på noget, der ikke findes eller ikke er publiceret. En datasource er af en type, feltet ikke tager imod. Elementer ligger i en kolonne, layoutet ikke har. | ja |
-| `warning` | Kladden har et felt, som ikke længere findes i definitionen. | nej |
+| `error` | Et påkrævet felt er tomt. En værdi står ikke i den hentede liste fra `optionsFrom`. En værdi er ugyldig (også inde i grupper og lister). Et link peger på en side, der ikke findes eller ikke er publiceret. En element-, datasource-, schedule- eller access-type findes ikke længere. En reference peger på noget, der ikke findes eller ikke er publiceret. En datasource er af en type, feltet ikke tager imod. Elementer ligger i en kolonne, layoutet ikke har. | ja |
+| `warning` | Kladden har et felt, som ikke længere findes i definitionen. En værdi i et felt med `optionsFrom` kunne ikke tjekkes, fordi servicen ikke svarer, og den står ikke i reservelisten. | nej |
 
 Hvert problem har `location` i klar tekst, fx `Sektion 2 › kolonne 1 › Artikelliste «Sport»`, og `section`, `element` og `field`, så editoren kan finde stedet.
 
